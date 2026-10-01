@@ -1,0 +1,67 @@
+name: Deploy dashboard
+
+# Publishes dashboard/ to the resume site's Azure Storage static website under /h1b/.
+on:
+  push:
+    branches: [main]
+    paths: ["dashboard/**", ".github/workflows/deploy-dashboard.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC login to Azure (no stored secrets)
+  contents: read
+
+concurrency:
+  group: deploy-dashboard
+  cancel-in-progress: true
+
+env:
+  SITE_PATH: h1b
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build upload folders
+        # Data JSON is pre-compressed (~1.3 MB -> ~300 KB); blobs are served with
+        # Content-Encoding: gzip, which browsers decompress transparently.
+        run: |
+          mkdir -p build/site build/data
+          cp dashboard/index.html dashboard/styles.css dashboard/app.js build/site/
+          for f in dashboard/data/*.json; do gzip -9 -n -c "$f" > "build/data/$(basename "$f")"; done
+          du -sh dashboard/data build/data
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Upload page, styles and script
+        run: >
+          az storage blob upload-batch
+          --account-name "${{ vars.SITE_STORAGE_ACCOUNT }}"
+          --destination '$web' --destination-path "$SITE_PATH"
+          --source build/site --overwrite --auth-mode login
+          --content-cache-control "public, max-age=300"
+          --only-show-errors
+
+      - name: Upload compressed data
+        run: >
+          az storage blob upload-batch
+          --account-name "${{ vars.SITE_STORAGE_ACCOUNT }}"
+          --destination '$web' --destination-path "$SITE_PATH/data"
+          --source build/data --overwrite --auth-mode login
+          --content-type application/json --content-encoding gzip
+          --content-cache-control "public, max-age=300"
+          --only-show-errors
+
+      - name: Smoke test
+        run: |
+          web=$(az storage account show -n "${{ vars.SITE_STORAGE_ACCOUNT }}" --query primaryEndpoints.web -o tsv)
+          base="${web%/}/$SITE_PATH"
+          curl -fsS "$base/" | grep -q "H-1B Data Jobs Tracker"
+          curl -fsS --compressed "$base/data/meta.json" | jq -e '.coverage | length > 0' > /dev/null
+          echo "Live: $base/" | tee -a "$GITHUB_STEP_SUMMARY"

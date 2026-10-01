@@ -1,6 +1,9 @@
 # H-1B Data Jobs Tracker
 
 ![CI](../../actions/workflows/ci.yml/badge.svg)
+![Deploy](../../actions/workflows/deploy-dashboard.yml/badge.svg)
+
+**Live dashboard:** https://stcloudresumeweby4ajk1.z13.web.core.windows.net/h1b/
 
 Which US employers sponsor H-1B visas for **data analyst, BI, data engineering and data
 science roles**, how many, and what they pay. Built from the U.S. Department of Labor's
@@ -49,6 +52,7 @@ flowchart LR
 | Classification | dbt seed of regex rules | Transparent and reviewable: [`role_family_rules.csv`](transform/seeds/role_family_rules.csv). Distinct titles are classified once, which halved build time. |
 | Dashboard | Plain HTML/CSS/JS | No framework. Colorblind-validated palette, light and dark mode, every chart has a table view, works at phone width. |
 | CI | GitHub Actions | Builds a synthetic dataset, runs the full dbt build and 18 pytest tests on every push. |
+| Deploy | GitHub Actions + Azure Storage | Logs in with OIDC (no stored secrets), uploads to the static website under `/h1b/` with gzip-compressed data, then smoke-tests the live URL. |
 
 ## Data decisions
 
@@ -110,7 +114,7 @@ tests/                   pytest + synthetic fixture generator
 ## Roadmap
 
 - [x] Ingestion, dbt warehouse with tests, dashboard, CI
-- [ ] Deploy the dashboard to Azure Storage static website with GitHub Actions (OIDC)
+- [x] Deploy the dashboard to Azure Storage static website with GitHub Actions (OIDC, pre-compressed data)
 - [ ] Land raw files in Azure Data Lake Storage Gen2; Azure Function to register new releases
 - [ ] Databricks notebook for loading multi-year history (FY2020+) into Delta tables
 - [ ] Power BI report on the marts (screenshots in this README)
