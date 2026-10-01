@@ -1,0 +1,12 @@
+version: 2
+
+seeds:
+  - name: role_family_rules
+    description: >
+      Regex rules (matched against the lower-cased job title) that assign a role family.
+      The lowest priority that matches wins, so specific roles are listed before general ones.
+    columns:
+      - name: priority
+        tests: [unique, not_null]
+      - name: role_family
+        tests: [unique, not_null]

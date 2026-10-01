@@ -1,0 +1,11 @@
+priority,role_family,pattern,is_data_role
+5,academic,professor|lecturer|instructor|faculty|postdoc|post-doc|teaching|research associate,false
+10,analytics_engineer,analytics engineer,true
+20,ml_engineer,machine learning engineer|\bml engineer|mlops|\bai engineer|ai/ml engineer,true
+30,data_engineer,data engineer|data eng\b|data platform engineer|etl developer|etl engineer|big data|data warehouse (engineer|developer|architect)|data integration (engineer|developer)|data pipeline|data (and analytics )?architect|data model(l)?er,true
+40,data_scientist,data scien|applied scientist|machine learning scientist|quantitative analyst|statistician,true
+50,bi_analyst,business intelligence|\bbi (analyst|developer|engineer)|power bi|tableau developer|reporting analyst,true
+60,data_analyst,"data analyst|data analytics|data analysis|analytics analyst|analytics specialist|insights analyst|product analyst|marketing analyst|analytics (consultant|manager|lead|associate|solutions)|(advanced|quant|marketing|product|business|people|risk|decision|strategic) analytics|manager,? analytics",true
+70,business_analyst,business analyst|business systems analyst,false
+80,database,database (administrator|developer|engineer|architect|analyst)|\bdba\b,false
+90,software_engineer,software|developer|programmer|\bsde\b|\bswe\b|full stack|backend|front end|frontend,false

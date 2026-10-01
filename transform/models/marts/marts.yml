@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: fct_lca_applications
+    description: One row per Labor Condition Application (latest release of each case).
+    columns:
+      - name: case_number
+        tests: [unique, not_null]
+      - name: fiscal_year
+        tests: [not_null]
+      - name: case_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Certified", "Certified - Withdrawn", "Withdrawn", "Denied"]
+      - name: visa_class
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["H-1B", "E-3 Australian", "H-1B1 Chile", "H-1B1 Singapore"]
+      - name: role_family
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('role_family_rules')
+                field: role_family
+              config:
+                where: "role_family <> 'other'"
+      - name: seniority
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["intern", "entry", "mid", "senior", "manager", "director"]
+      - name: wage_level
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["I", "II", "III", "IV"]
+      - name: annual_wage
+        description: Offered wage (lower bound of the range), converted to a yearly amount.
+
+  - name: dim_employers
+    description: One row per normalized employer name.
+    columns:
+      - name: employer_key
+        tests: [unique, not_null]
+      - name: display_name
+        tests: [not_null]
+
+  - name: fiscal_year_coverage
+    description: Months loaded per fiscal year; partial years must be labeled in reports.
+    columns:
+      - name: fiscal_year
+        tests: [unique, not_null]
+
+  - name: agg_employer_role_year
+    description: Certified H-1B applications and wages by employer, role family and fiscal year.
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: ["employer_key", "fiscal_year", "role_family"]
+
+  - name: agg_role_wages
+    description: Wage percentiles by fiscal year, role family, wage level and worksite state.
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: ["fiscal_year", "role_family", "wage_level", "worksite_state"]

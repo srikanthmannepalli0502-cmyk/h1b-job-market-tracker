@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Parquet written by pipeline/ingest_lca.py. All columns are text, as published by DOL.
+    tables:
+      - name: lca
+        description: >
+          One row per LCA case per source file. Quarterly files (FY2024-FY2025) and
+          year-to-date files (FY2026 Q3) are both present, so a case can appear more than once.
+        meta:
+          external_location: "read_parquet('data/bronze/lca/*.parquet', union_by_name = true)"
+        columns:
+          - name: case_number
+            tests: [not_null]

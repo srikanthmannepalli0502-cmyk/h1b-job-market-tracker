@@ -1,0 +1,29 @@
+# Raw and intermediate data (large; re-created by the pipeline)
+data/raw/
+data/bronze/
+data/*.duckdb
+data/*.duckdb.wal
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+logs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Local tooling
+.claude/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# dbt anonymous user id
+transform/.user.yml

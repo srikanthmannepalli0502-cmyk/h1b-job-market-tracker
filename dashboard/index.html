@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>H-1B Data Jobs Tracker</title>
+  <meta name="description" content="Which US employers sponsor H-1B visas for data analyst, BI, data engineering and data science roles, and what they pay. Built from U.S. Department of Labor LCA disclosure data.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>H-1B Data Jobs Tracker</h1>
+    <p class="lede">Which employers sponsor H-1B visas for data roles, and what they pay.
+      Built from the U.S. Department of Labor&rsquo;s public data on Labor Condition Applications (LCAs).</p>
+    <p class="coverage" id="coverage">Loading data&hellip;</p>
+  </header>
+
+  <main>
+    <section class="filters" aria-label="Filters">
+      <label>Role
+        <select id="role-filter"></select>
+      </label>
+      <label>Fiscal year
+        <select id="fy-filter"></select>
+      </label>
+    </section>
+
+    <section class="tiles" aria-label="Summary">
+      <div class="tile">
+        <div class="tile-label">Certified H-1B applications</div>
+        <div class="tile-value" id="tile-apps">&ndash;</div>
+        <div class="tile-note" id="tile-apps-note"></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Median offered salary</div>
+        <div class="tile-value" id="tile-wage">&ndash;</div>
+        <div class="tile-note" id="tile-wage-note"></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Change vs. same months last year</div>
+        <div class="tile-value" id="tile-trend">&ndash;</div>
+        <div class="tile-note" id="tile-trend-note"></div>
+      </div>
+    </section>
+
+    <section class="card card-wide" aria-labelledby="sponsors-title">
+      <div class="card-head">
+        <div>
+          <h2 id="sponsors-title">Who sponsors this role</h2>
+          <p class="card-sub" id="sponsors-sub"></p>
+        </div>
+        <input type="search" id="employer-search" placeholder="Search employers" aria-label="Search employers">
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="sponsors-table">
+          <thead>
+            <tr>
+              <th scope="col">Employer</th>
+              <th scope="col">HQ</th>
+              <th scope="col" class="num">Certified apps</th>
+              <th scope="col" class="num" title="Wage level I or entry-level title">Entry-level</th>
+              <th scope="col" class="num" title="New employment (not extensions)">New hires</th>
+              <th scope="col" class="num">Median salary</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span id="sponsors-count"></span>
+        <button type="button" id="show-more">Show more</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card" aria-labelledby="wages-title">
+        <h2 id="wages-title">Salary by wage level</h2>
+        <p class="card-sub">Middle 50% of offered salaries (25th&ndash;75th percentile); the tick marks the median.
+          Level I is the entry tier set by DOL prevailing-wage rules.</p>
+        <div class="chart" id="wage-chart" role="img" aria-describedby="wage-table-wrap"></div>
+        <details id="wage-table-wrap"><summary>Show as table</summary><div id="wage-table"></div></details>
+      </section>
+
+      <section class="card" aria-labelledby="trend-title">
+        <h2 id="trend-title">Which data roles are growing</h2>
+        <p class="card-sub" id="trend-sub"></p>
+        <div class="chart" id="trend-chart" role="img" aria-describedby="trend-table-wrap"></div>
+        <details id="trend-table-wrap"><summary>Show as table</summary><div id="trend-table"></div></details>
+      </section>
+
+      <section class="card card-wide" aria-labelledby="states-title">
+        <h2 id="states-title">Where the jobs are</h2>
+        <p class="card-sub">Top worksite states by certified applications for the selected role and year.</p>
+        <div class="chart" id="state-chart" role="img" aria-describedby="state-table-wrap"></div>
+        <details id="state-table-wrap"><summary>Show as table</summary><div id="state-table"></div></details>
+      </section>
+    </div>
+
+    <section class="notes" aria-labelledby="notes-title">
+      <h2 id="notes-title">How to read this</h2>
+      <ul>
+        <li><strong>An LCA is not a visa.</strong> Employers file a Labor Condition Application before an H-1B petition.
+          A certified LCA shows intent to sponsor for that role and wage; it does not mean a visa was approved.</li>
+        <li><strong>Salaries are offered wages</strong> (the lower end of the range on the application), converted to a yearly amount.
+          Values outside $15K&ndash;$1M are treated as data-entry errors and excluded from salary figures.</li>
+        <li><strong>The same job goes by different titles.</strong> Amazon, for example, files its analyst roles as
+          &ldquo;Business Intelligence Engineer&rdquo;, so it appears under BI Analyst / Engineer, not Data Analyst.
+          Check neighboring roles when you search for sponsors.</li>
+        <li><strong>Roles are classified from job titles</strong> with transparent rules
+          (<a href="https://github.com/srikanthmannepalli0502-cmyk/h1b-job-market-tracker/blob/main/transform/seeds/role_family_rules.csv">see the rules</a>),
+          so some titles will be missed or misclassified.</li>
+        <li><strong>Employer names are grouped</strong> by normalizing spelling and legal suffixes. Separate legal entities
+          (e.g. Amazon.com Services and Amazon Web Services) are listed separately.</li>
+        <li>Partial fiscal years are labeled. Year-over-year changes always compare the same months.</li>
+      </ul>
+      <p class="source">Source: U.S. Department of Labor, Office of Foreign Labor Certification, LCA disclosure data.
+        Personal details in the source files (contact, attorney and preparer names, emails, phones) are dropped during ingestion.
+        Not legal advice. Code: <a href="https://github.com/srikanthmannepalli0502-cmyk/h1b-job-market-tracker">GitHub</a>.
+        Built by <a href="../">Srikanth Mannepalli</a>.</p>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
