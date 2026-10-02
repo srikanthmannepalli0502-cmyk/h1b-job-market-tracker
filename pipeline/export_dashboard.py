@@ -5,6 +5,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -54,6 +55,26 @@ def write(name: str, payload) -> None:
     print(f"wrote {path} ({path.stat().st_size / 1024:.0f} KB)")
 
 
+def source_files(con) -> list[dict]:
+    """Which source releases this build used. The refresh workflow compares this with the
+    lake's manifests to decide whether a rebuild is needed.
+
+    Uses the ingestion Function's manifests (with file checksums) when MANIFEST_DIR is set,
+    otherwise derives file names and row counts from the warehouse.
+    """
+    manifest_dir = os.getenv("MANIFEST_DIR")
+    if manifest_dir and Path(manifest_dir).is_dir():
+        manifests = [json.loads(p.read_text(encoding="utf-8")) for p in Path(manifest_dir).glob("*.json")]
+        return sorted(
+            ({"source_file": m["source_file"], "sha256": m["sha256"], "rows": m["rows"]} for m in manifests),
+            key=lambda s: s["source_file"],
+        )
+    return rows(con, """
+        select source_file, null as sha256, count(*) as rows
+        from stg_lca__applications group by 1 order by 1
+    """)
+
+
 def export(con) -> None:
     roles = list(DASHBOARD_ROLES)
     placeholders = ",".join("?" * len(roles))
@@ -68,6 +89,7 @@ def export(con) -> None:
     """, roles)
     write("meta", {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "sources": source_files(con),
         "coverage": coverage,
         "totals": totals,
         "roles": roles,

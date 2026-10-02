@@ -1,0 +1,4 @@
+resource_group_name  = "rg-cloudresume-tfstate"
+storage_account_name = "<your tfstate storage account>"
+container_name       = "tfstate"
+key                  = "h1b-tracker.tfstate"

@@ -42,23 +42,30 @@ count as AI; classic machine-learning engineering counts as ML.</sub>
 
 ```mermaid
 flowchart LR
-    DOL[DOL OFLC<br/>quarterly LCA .xlsx] -->|browser download,<br/>4x a year| RAW[data/raw]
-    RAW -->|pipeline/ingest_lca.py<br/>allow-listed columns only| BRONZE[(Bronze<br/>Parquet)]
-    BRONZE --> STG[dbt staging<br/>types, wages to annual,<br/>employer-name keys]
-    STG --> INT[dbt intermediate<br/>latest release per case,<br/>role + seniority rules]
-    INT --> MARTS[dbt marts<br/>fact, employer dim,<br/>aggregates]
-    MARTS -->|pipeline/export_dashboard.py| JSON[Compact JSON]
-    JSON --> WEB[Static dashboard<br/>dashboard/]
+    DOL[DOL OFLC<br/>quarterly LCA .xlsx] -->|browser download<br/>4x a year| UP[scripts/upload_raw.py]
+    subgraph Azure["Azure (rg-h1b-tracker, Terraform)"]
+        RAW[(ADLS Gen2<br/>raw/lca)]
+        FN[Azure Function<br/>Flex Consumption<br/>timer 6h + HTTP]
+        BRONZE[(ADLS Gen2<br/>bronze/lca Parquet<br/>+ manifests)]
+        RAW --> FN -->|allow-listed columns| BRONZE
+    end
+    UP --> RAW
+    BRONZE -->|daily: only if<br/>manifests changed| GHA[GitHub Actions<br/>dbt build + tests on DuckDB]
+    GHA --> JSON[Compact JSON]
+    JSON --> WEB[Static dashboard<br/>Azure Storage /h1b/]
 ```
 
 | Layer | Tech | Notes |
 |---|---|---|
-| Ingestion | Python, Polars, fastexcel | 718 MB of Excel becomes 44 MB of Parquet. Incremental: only new or changed files are re-read. |
+| Data lake | ADLS Gen2 (hierarchical namespace) | `raw` and `bronze` zones. Account keys and SAS are disabled: Entra ID (RBAC) only. 7-day soft delete. |
+| Ingestion | Azure Function (Python, Flex Consumption) + Polars/fastexcel | Every 6 hours (or on demand over HTTP) converts new raw workbooks to Parquet and writes a manifest (ETag, SHA-256, row count). Skips files whose ETag hasn't changed. The same allow-list code runs locally. 718 MB of Excel becomes 44 MB of Parquet. |
 | Warehouse | DuckDB + dbt | 9 models, 32 data tests (uniqueness, accepted values, relationships, dedup completeness, wage sanity). |
 | Classification | dbt seed of regex rules | Transparent and reviewable: [`role_family_rules.csv`](transform/seeds/role_family_rules.csv); first match wins, so order resolves overlaps ("Cloud Data Engineer" is data, "DevSecOps" is security). DOL's security-analyst occupation code (SOC 15-1212) backs up the security rules. Distinct titles are classified once, which halved build time. |
 | Dashboard | Plain HTML/CSS/JS | No framework. Colorblind-validated palette, light and dark mode, every chart has a table view, works at phone width. |
-| CI | GitHub Actions | Builds a synthetic dataset, runs the full dbt build and 18 pytest tests on every push. |
-| Deploy | GitHub Actions + Azure Storage | Logs in with OIDC (no stored secrets), uploads to the static website under `/h1b/` with gzip-compressed data, then smoke-tests the live URL. |
+| Refresh | GitHub Actions (daily) | Compares lake manifests with the files the dashboard was built from; only when they differ does it download bronze, run dbt + tests, export, deploy and commit the data. |
+| Infrastructure | Terraform | Resource group, lake, Function, monitoring (log cap 0.1 GB/day) and least-privilege role assignments. |
+| CI | GitHub Actions | Builds a synthetic dataset, runs the full dbt build, 32 pytest tests and `terraform validate` on every push. |
+| Deploy | GitHub Actions + Azure | Logs in with OIDC (no stored secrets). Deploys the Function and the dashboard (gzip-compressed data under `/h1b/`), then smoke-tests both. |
 
 ## Data decisions
 
@@ -78,21 +85,35 @@ flowchart LR
 
 ## Run it
 
+### Cloud (how the live dashboard is updated)
+
+1. Download new `LCA_Disclosure_Data_FY*_Q*.xlsx` files from
+   [DOL's performance data page](https://www.dol.gov/agencies/eta/foreign-labor/performance) into
+   `data/raw/lca/` (DOL blocks automated downloads, so this step is manual, about 4 times a year).
+2. Upload them to the lake and process right away (or let the 6-hour timer pick them up):
+
+```bash
+pip install -r requirements-cloud.txt
+az login
+python scripts/upload_raw.py --account <lake_account> --process --function-app <function_app_name>
+```
+
+3. The daily **Refresh data from lake** workflow rebuilds and redeploys the dashboard
+   (or run it now from the Actions tab).
+
+Infrastructure: `cd infra && terraform init -backend-config=backend.hcl && terraform apply`
+(see `backend.hcl.example`).
+
+### Local
+
 Requires Python 3.11+.
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements-dev.txt
-```
 
-1. **Download** the LCA disclosure files (`LCA_Disclosure_Data_FY*_Q*.xlsx`) from
-   [DOL's performance data page](https://www.dol.gov/agencies/eta/foreign-labor/performance) into
-   `data/raw/lca/`. DOL blocks automated downloads, so this step is manual.
-2. **Build:**
-
-```bash
-python -m pipeline.ingest_lca                                    # Excel -> Parquet
+python -m pipeline.ingest_lca                                    # data/raw -> Parquet
 dbt build --project-dir transform --profiles-dir transform       # models + tests
 python -m pipeline.export_dashboard                              # warehouse -> JSON
 python -m http.server 8765 --directory dashboard                 # open http://localhost:8765
@@ -104,8 +125,11 @@ synthetic dataset, and the same commands work on it (that's what CI does).
 ## Repo layout
 
 ```
+infra/                   Terraform: lake, Function, monitoring, RBAC
+functions/               Azure Function (timer + HTTP) and lake_ingest.py
+scripts/                 upload_raw.py, deploy_dashboard.sh
 pipeline/
-  ingest_lca.py          bronze ingestion (allow-listed columns)
+  ingest_lca.py          bronze ingestion (allow-listed columns), shared by CLI and Function
   export_dashboard.py    warehouse -> compact JSON for the dashboard
 transform/               dbt project (DuckDB)
   models/staging/        typing, wage annualization, employer keys
@@ -121,7 +145,9 @@ tests/                   pytest + synthetic fixture generator
 
 - [x] Ingestion, dbt warehouse with tests, dashboard, CI
 - [x] Deploy the dashboard to Azure Storage static website with GitHub Actions (OIDC, pre-compressed data)
-- [ ] Land raw files in Azure Data Lake Storage Gen2; Azure Function to register new releases
+- [x] Land raw files in Azure Data Lake Storage Gen2; Azure Function converts and registers new releases
+- [x] Daily refresh workflow: rebuild only when the lake changes
+- [ ] Event Grid trigger instead of the 6-hour timer (needs a two-stage deploy for the subscription)
 - [ ] Databricks notebook for loading multi-year history (FY2020+) into Delta tables
 - [ ] Power BI report on the marts (screenshots in this README)
 - [ ] USCIS H-1B Employer Data Hub join (petition approvals/denials per employer)

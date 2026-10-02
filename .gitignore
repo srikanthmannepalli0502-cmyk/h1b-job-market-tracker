@@ -27,3 +27,10 @@ Thumbs.db
 
 # dbt anonymous user id
 transform/.user.yml
+
+# Terraform local state/config
+infra/.terraform/
+infra/*.tfstate*
+infra/tfplan
+infra/backend.hcl
+infra/*.tfvars

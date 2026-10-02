@@ -54,8 +54,9 @@ def bronze_path(fy: int, q: int) -> Path:
     return BRONZE_DIR / f"lca_fy{fy}_q{q}.parquet"
 
 
-def read_lca_excel(path: Path) -> pl.DataFrame:
-    reader = fastexcel.read_excel(path)
+def read_lca_excel(source: Path | bytes) -> pl.DataFrame:
+    """Read a DOL LCA workbook from a path or from its raw bytes (used by the Azure Function)."""
+    reader = fastexcel.read_excel(source)
     header = reader.load_sheet(0, n_rows=0).to_polars().columns
     present = [c for c in KEEP_COLUMNS if c in header]
     df = reader.load_sheet(0, use_columns=present, dtypes="string").to_polars()
@@ -66,11 +67,13 @@ def read_lca_excel(path: Path) -> pl.DataFrame:
     return df.select(KEEP_COLUMNS)
 
 
-def ingest_file(path: Path, fy: int, q: int) -> pl.DataFrame:
-    df = read_lca_excel(path).with_columns(
+def ingest_file(source: Path | bytes, fy: int, q: int, file_name: str | None = None) -> pl.DataFrame:
+    """Bronze rows for one release. Pass file_name when `source` is bytes."""
+    name = file_name or Path(source).name
+    df = read_lca_excel(source).with_columns(
         pl.lit(fy).alias("SOURCE_FISCAL_YEAR"),
         pl.lit(q).alias("SOURCE_QUARTER"),
-        pl.lit(path.name).alias("SOURCE_FILE"),
+        pl.lit(name).alias("SOURCE_FILE"),
     )
     df.columns = [c.lower() for c in df.columns]
     return df

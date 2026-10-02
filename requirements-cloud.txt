@@ -1,0 +1,3 @@
+-r requirements.txt
+azure-identity>=1.15
+azure-storage-blob>=12.19

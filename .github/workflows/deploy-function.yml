@@ -1,0 +1,66 @@
+name: Deploy ingestion function
+
+on:
+  push:
+    branches: [main]
+    paths: ["functions/**", "pipeline/ingest_lca.py", ".github/workflows/deploy-function.yml"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-function
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v tests/test_lake_ingest.py tests/test_ingest.py
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bundle shared ingestion code with the function
+        # The Function imports pipeline.ingest_lca, the same code used locally.
+        run: |
+          mkdir -p functions/pipeline
+          cp pipeline/__init__.py pipeline/ingest_lca.py functions/pipeline/
+          ls -R functions
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.FUNCTION_APP_NAME }}
+          package: functions
+          sku: flexconsumption
+          remote-build: true
+
+      - name: Check functions registered
+        run: |
+          for i in $(seq 1 12); do
+            names=$(az functionapp function list -g "${{ vars.H1B_RESOURCE_GROUP }}" -n "${{ vars.FUNCTION_APP_NAME }}" --query "[].name" -o tsv)
+            if echo "$names" | grep -q scan_raw && echo "$names" | grep -q process_now; then
+              echo "$names"; exit 0
+            fi
+            echo "waiting for function indexing..."; sleep 10
+          done
+          echo "functions not registered: $names"; exit 1
