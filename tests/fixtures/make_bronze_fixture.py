@@ -27,6 +27,9 @@ TITLES = [
     "Data Analyst", "Senior Data Analyst", "Business Intelligence Engineer II", "Data Engineer",
     "Data Scientist", "Software Engineer", "Analytics Engineer", "Machine Learning Engineer",
     "Business Analyst", "Assistant Professor of Data Science", "Accountant",
+    "Security Engineer II", "DevSecOps Engineer", "Cloud Data Engineer", "Cloud Solution Architect",
+    "Site Reliability Engineer", "Senior AI/ML Engineer", "Generative AI Engineer",
+    "Quality Reliability Engineer",
 ]
 STATES = ["WA", "NY", "TX", "CA", "MA", "NJ", "IL"]
 LEVELS = ["I", "II", "III", "IV", None]

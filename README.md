@@ -1,36 +1,42 @@
-# H-1B Data Jobs Tracker
+# H-1B Tech Jobs Tracker
 
 ![CI](../../actions/workflows/ci.yml/badge.svg)
 ![Deploy](../../actions/workflows/deploy-dashboard.yml/badge.svg)
 
 **Live dashboard:** https://stcloudresumeweby4ajk1.z13.web.core.windows.net/h1b/
 
-Which US employers sponsor H-1B visas for **data analyst, BI, data engineering and data
-science roles**, how many, and what they pay. Built from the U.S. Department of Labor's
-public Labor Condition Application (LCA) disclosure data: **1.14 million cases,
-FY2024 Q4 through FY2026 Q3**.
+Which US employers sponsor H-1B visas for **data, AI, cybersecurity, cloud and DevOps roles**,
+how many, and what they pay. Built from the U.S. Department of Labor's public Labor Condition
+Application (LCA) disclosure data: **1.14 million cases, FY2024 Q4 through FY2026 Q3**.
 
 I'm an international student looking for data roles, and I wanted to aim my applications at
 employers that actually sponsor them. This project turns DOL's quarterly Excel releases into a
-tested warehouse and a dashboard that answers that question.
+tested warehouse and a dashboard that answers that question for the main tech role families.
 
 ## What the data shows (FY2025, certified H-1B LCAs)
 
 | Role | Certified applications | Median offered salary | Level I (entry) median | Change, Oct–Jun FY26 vs FY25 |
 |---|---:|---:|---:|---:|
-| Data Analyst | 8,414 | $106K | $78K | −3.8% |
-| BI Analyst / Engineer | 4,279 | $112K | $83K | −19.5% |
-| Data Engineer | 12,967 | $128K | $88K | −6.5% |
+| Data Analyst | 8,406 | $106K | $78K | −3.9% |
+| BI Analyst / Engineer | 4,279 | $112K | $83K | −19.6% |
+| Data Engineer | 12,938 | $128K | $88K | −6.7% |
 | Analytics Engineer | 344 | $128K | $87K | +15.6% |
-| Data Scientist | 12,317 | $144K | $90K | +6.2% |
-| ML Engineer | 3,072 | $168K | $112K | **+35.6%** |
+| Data Scientist | 12,259 | $144K | $90K | +6.0% |
+| AI Engineer / Scientist | 1,416 | $134K | $96K | **+138.7%** |
+| ML Engineer | 2,446 | $178K | $132K | +6.8% |
+| Cybersecurity | 5,221 | $135K | $90K | −1.9% |
+| Cloud Engineer / Architect | 4,668 | $137K | $91K | −12.1% |
+| DevOps / SRE / Platform | 6,441 | $125K | $91K | −10.3% |
 
 <sub>Salaries: full-time roles with a valid wage. Wage level I is DOL's entry tier. Role labels come from
-job-title rules, so counts are approximate.</sub>
+job-title rules, so counts are approximate. "AI" and "ML" are separate: titles naming AI, GenAI or LLMs
+count as AI; classic machine-learning engineering counts as ML.</sub>
 
+- **AI roles more than doubled** (1,116 → 2,664 over the same Oct–Jun months), while most other tech
+  sponsorship shrank: cloud −12%, DevOps −10%, BI −20%, software engineering −9%.
+- **Cybersecurity held steady** (−1.9%), with one firm (Ernst & Young) filing about 1 in 10 of those applications.
 - **The same work hides under different titles.** Amazon, the largest sponsor for analyst-type work,
   files those roles as "Business Intelligence Engineer", never "Data Analyst".
-- **Sponsorship for analyst and BI roles fell** in FY2026, while ML engineering grew by a third.
 
 ## Architecture
 
@@ -49,7 +55,7 @@ flowchart LR
 |---|---|---|
 | Ingestion | Python, Polars, fastexcel | 718 MB of Excel becomes 44 MB of Parquet. Incremental: only new or changed files are re-read. |
 | Warehouse | DuckDB + dbt | 9 models, 32 data tests (uniqueness, accepted values, relationships, dedup completeness, wage sanity). |
-| Classification | dbt seed of regex rules | Transparent and reviewable: [`role_family_rules.csv`](transform/seeds/role_family_rules.csv). Distinct titles are classified once, which halved build time. |
+| Classification | dbt seed of regex rules | Transparent and reviewable: [`role_family_rules.csv`](transform/seeds/role_family_rules.csv); first match wins, so order resolves overlaps ("Cloud Data Engineer" is data, "DevSecOps" is security). DOL's security-analyst occupation code (SOC 15-1212) backs up the security rules. Distinct titles are classified once, which halved build time. |
 | Dashboard | Plain HTML/CSS/JS | No framework. Colorblind-validated palette, light and dark mode, every chart has a table view, works at phone width. |
 | CI | GitHub Actions | Builds a synthetic dataset, runs the full dbt build and 18 pytest tests on every push. |
 | Deploy | GitHub Actions + Azure Storage | Logs in with OIDC (no stored secrets), uploads to the static website under `/h1b/` with gzip-compressed data, then smoke-tests the live URL. |

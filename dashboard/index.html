@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>H-1B Data Jobs Tracker</title>
-  <meta name="description" content="Which US employers sponsor H-1B visas for data analyst, BI, data engineering and data science roles, and what they pay. Built from U.S. Department of Labor LCA disclosure data.">
-  <link rel="stylesheet" href="styles.css">
+  <title>H-1B Tech Jobs Tracker</title>
+  <meta name="description" content="Which US employers sponsor H-1B visas for data, AI, cybersecurity, cloud and DevOps roles, and what they pay. Built from U.S. Department of Labor LCA disclosure data.">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
   <header class="page-header">
-    <h1>H-1B Data Jobs Tracker</h1>
-    <p class="lede">Which employers sponsor H-1B visas for data roles, and what they pay.
+    <h1>H-1B Tech Jobs Tracker</h1>
+    <p class="lede">Which employers sponsor H-1B visas for data, AI, cybersecurity, cloud and DevOps roles, and what they pay.
       Built from the U.S. Department of Labor&rsquo;s public data on Labor Condition Applications (LCAs).</p>
     <p class="coverage" id="coverage">Loading data&hellip;</p>
   </header>
@@ -82,7 +82,7 @@
       </section>
 
       <section class="card" aria-labelledby="trend-title">
-        <h2 id="trend-title">Which data roles are growing</h2>
+        <h2 id="trend-title">Which roles are growing</h2>
         <p class="card-sub" id="trend-sub"></p>
         <div class="chart" id="trend-chart" role="img" aria-describedby="trend-table-wrap"></div>
         <details id="trend-table-wrap"><summary>Show as table</summary><div id="trend-table"></div></details>
@@ -121,6 +121,6 @@
   </main>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

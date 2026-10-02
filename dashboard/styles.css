@@ -163,6 +163,19 @@ button:hover { border-color: var(--axis); }
 .bar.pos { border-radius: 0 4px 4px 0; }
 .bar.neg { background: var(--series-neg); border-radius: 4px 0 0 4px; }
 .bar.muted { opacity: 0.45; }
+/* Bar longer than the axis: square end plus a diagonal break near the edge. */
+.bar.clipped { border-radius: 0; }
+.bar.clipped::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 16px;
+  background: var(--surface);
+  transform: skewX(-20deg);
+}
+.bar.pos.clipped::after { right: 8px; }
+.bar.neg.clipped::after { left: 8px; }
 .range { position: absolute; top: 8px; height: 12px; border-radius: 4px; background: var(--series-1); opacity: 0.85; }
 .median-tick { position: absolute; top: 4px; height: 20px; width: 2px; margin-left: -1px; background: var(--text-primary); box-shadow: 0 0 0 2px var(--surface); }
 .axis-row { display: grid; grid-template-columns: 120px 1fr 72px; gap: 8px; margin-top: 4px; }

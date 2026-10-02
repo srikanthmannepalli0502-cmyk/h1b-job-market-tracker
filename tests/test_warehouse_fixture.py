@@ -61,6 +61,15 @@ def test_hourly_wages_are_annualized(con):
     ("Machine Learning Engineer", "ml_engineer"),
     ("Assistant Professor of Data Science", "academic"),
     ("Accountant", "other"),
+    # Newer role groups; rule order decides overlaps.
+    ("Security Engineer II", "cybersecurity"),
+    ("DevSecOps Engineer", "cybersecurity"),       # security wins over DevOps
+    ("Cloud Data Engineer", "data_engineer"),      # data wins over cloud
+    ("Cloud Solution Architect", "cloud_engineer"),
+    ("Site Reliability Engineer", "devops_engineer"),
+    ("Senior AI/ML Engineer", "ai_engineer"),      # AI wins over ML
+    ("Generative AI Engineer", "ai_engineer"),
+    ("Quality Reliability Engineer", "other"),     # manufacturing, not SRE
 ])
 def test_role_classification(con, title, role):
     roles = {r for (r,) in con.execute("select distinct role_family from fct_lca_applications where job_title = ?", [title]).fetchall()}

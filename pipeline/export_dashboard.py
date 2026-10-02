@@ -14,8 +14,17 @@ import duckdb
 WAREHOUSE = Path("data/warehouse.duckdb")
 OUT_DIR = Path("dashboard/data")
 
-DATA_ROLES = ("data_analyst", "bi_analyst", "data_engineer", "analytics_engineer", "data_scientist", "ml_engineer")
-# Employers need at least this many certified data-role applications to be listed.
+# Roles offered in the dashboard, grouped for the dropdown. Keys must match role_family_rules.csv.
+ROLE_GROUPS = {
+    "Data & Analytics": ["data_analyst", "bi_analyst", "data_engineer", "analytics_engineer", "data_scientist"],
+    "AI & ML": ["ai_engineer", "ml_engineer"],
+    "Security": ["cybersecurity"],
+    "Cloud & DevOps": ["cloud_engineer", "devops_engineer"],
+}
+DASHBOARD_ROLES = tuple(r for roles in ROLE_GROUPS.values() for r in roles)
+# Shown in the growth chart for comparison, but not selectable.
+COMPARISON_ROLES = ("software_engineer", "business_analyst")
+# Employers need at least this many certified applications in dashboard roles to be listed.
 MIN_EMPLOYER_APPS = 3
 
 
@@ -46,7 +55,7 @@ def write(name: str, payload) -> None:
 
 
 def export(con) -> None:
-    roles = list(DATA_ROLES)
+    roles = list(DASHBOARD_ROLES)
     placeholders = ",".join("?" * len(roles))
 
     coverage = rows(con, "select * from fiscal_year_coverage order by fiscal_year")
@@ -62,6 +71,7 @@ def export(con) -> None:
         "coverage": coverage,
         "totals": totals,
         "roles": roles,
+        "role_groups": ROLE_GROUPS,
         "min_employer_apps": MIN_EMPLOYER_APPS,
     })
 
@@ -72,6 +82,8 @@ def export(con) -> None:
     """, [latest])
     months = [r["m"] for r in latest_months]
     month_ph = ",".join("?" * len(months))
+    trend_roles = [*roles, *COMPARISON_ROLES]
+    trend_ph = ",".join("?" * len(trend_roles))
     trend_rows = rows(con, f"""
         select role_family,
                count(*) filter (where fiscal_year = ? - 1) as prior,
@@ -79,9 +91,9 @@ def export(con) -> None:
         from fct_lca_applications
         where is_certified and is_h1b
           and month(decision_date) in ({month_ph})
-          and (is_data_role or role_family in ('software_engineer', 'business_analyst'))
+          and role_family in ({trend_ph})
         group by 1 order by current desc
-    """, [latest, latest, *months])
+    """, [latest, latest, *months, *trend_roles])
     write("trend", {"current_fy": latest, "months": sorted(months), "rows": trend_rows})
 
     write("wages", columnar(rows(con, f"""

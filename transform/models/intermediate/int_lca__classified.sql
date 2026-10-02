@@ -36,7 +36,15 @@ title_seniority as (
 
 select
     c.*,
-    coalesce(r.role_family, 'other')  as role_family,
+    case
+        when r.role_family is not null then r.role_family
+        -- DOL's Information Security Analysts code catches security titles the rules miss.
+        -- The title must still look like security work: consulting firms file generic
+        -- titles such as "Manager" under this code.
+        when c.soc_code = '15-1212'
+         and regexp_matches(c.job_title_lower, 'secur|threat|vulnerab|risk|privacy|forensic') then 'cybersecurity'
+        else 'other'
+    end                               as role_family,
     coalesce(r.is_data_role, false)   as is_data_role,
     coalesce(s.seniority, 'mid')      as seniority
 from cases c

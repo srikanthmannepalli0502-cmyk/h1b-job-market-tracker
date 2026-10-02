@@ -7,6 +7,10 @@ const ROLE_LABELS = {
   analytics_engineer: "Analytics Engineer",
   data_scientist: "Data Scientist",
   ml_engineer: "ML Engineer",
+  ai_engineer: "AI Engineer / Scientist",
+  cybersecurity: "Cybersecurity",
+  cloud_engineer: "Cloud Engineer / Architect",
+  devops_engineer: "DevOps / SRE / Platform",
   software_engineer: "Software Engineer",
   business_analyst: "Business Analyst",
 };
@@ -148,7 +152,7 @@ function renderSponsors() {
   const cov = DATA.meta.coverage.find((c) => c.fiscal_year === state.fy);
   $("sponsors-sub").textContent =
     `${roleLabel(state.role)} · ${coverageLabel(cov)} · certified H-1B LCAs. ` +
-    `Employers with fewer than ${DATA.meta.min_employer_apps} data-role applications across all years are not listed.`;
+    `Employers with fewer than ${DATA.meta.min_employer_apps} applications in these roles across all years are not listed.`;
 
   const tbody = $("sponsors-table").querySelector("tbody");
   if (!rows.length) {
@@ -216,10 +220,15 @@ function renderTrend() {
   $("trend-sub").textContent = `Certified H-1B applications, ${trendPeriod()} (same months, so the partial year compares fairly).`;
 
   // Symmetric around zero so growth and decline bars are visually comparable.
-  const ext = Math.max(10, ...rows.map((r) => Math.abs(r.pct)));
-  const lim = Math.max(...niceTicks(0, ext, 2));
+  // Scale to the second-largest change: a single outlier (e.g. +139%) would
+  // otherwise squash every other bar to a few pixels. Bars past the axis are
+  // drawn broken at the edge; their real value stays in the label and table.
+  const mags = rows.map((r) => Math.abs(r.pct)).sort((a, b) => b - a);
+  const scaleTo = mags.length > 2 && mags[0] > 2 * mags[1] ? mags[1] * 1.15 : mags[0];
+  const lim = Math.max(...niceTicks(0, Math.max(10, scaleTo), 2));
   const ticks = niceTicks(-lim, lim, 4);
-  const x = (v) => ((v + lim) / (2 * lim)) * 100;
+  const clamp = (v) => Math.max(-lim, Math.min(lim, v));
+  const x = (v) => ((clamp(v) + lim) / (2 * lim)) * 100;
 
   const el = $("trend-chart");
   el.innerHTML = rows.map((r) => {
@@ -234,7 +243,7 @@ function renderTrend() {
         <div class="plot" tabindex="0" data-tip="${esc(tip)}" aria-label="${esc(roleLabel(r.role_family))}: ${r.pct >= 0 ? "up" : "down"} ${Math.abs(r.pct).toFixed(1)} percent">
           ${ticks.map((t) => `<span class="gridline" style="left:${x(t)}%"></span>`).join("")}
           <span class="zero" style="left:${x(0)}%"></span>
-          <span class="bar ${r.pct >= 0 ? "pos" : "neg"}${selected ? "" : " muted"}" style="left:${left}%;width:${Math.max(width, 0.5)}%"></span>
+          <span class="bar ${r.pct >= 0 ? "pos" : "neg"}${selected ? "" : " muted"}${Math.abs(r.pct) > lim ? " clipped" : ""}" style="left:${left}%;width:${Math.max(width, 0.5)}%"></span>
         </div>
         <div class="row-value">${sign} ${Math.abs(r.pct).toFixed(1)}%</div>
       </div>`;
@@ -295,7 +304,9 @@ function renderAll() {
 
 function setupFilters() {
   const roleSel = $("role-filter");
-  roleSel.innerHTML = DATA.meta.roles.map((r) => `<option value="${r}">${esc(roleLabel(r))}</option>`).join("");
+  roleSel.innerHTML = Object.entries(DATA.meta.role_groups).map(([group, roles]) =>
+    `<optgroup label="${esc(group)}">${roles.map((r) => `<option value="${r}">${esc(roleLabel(r))}</option>`).join("")}</optgroup>`,
+  ).join("");
   roleSel.value = state.role;
 
   const fySel = $("fy-filter");
