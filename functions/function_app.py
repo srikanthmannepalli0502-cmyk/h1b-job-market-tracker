@@ -2,6 +2,8 @@
 
 - Timer: every 6 hours (DOL publishes quarterly, so polling is simpler than events).
 - HTTP:  POST /api/process (function key) to run on demand; ?force=1 reprocesses everything.
+         Azure ends HTTP requests after 230 s, so for large or many files start the timer
+         function instead (scripts/upload_raw.py --process does this via the admin API).
 
 Authenticates to the lake with the Function App's managed identity.
 """

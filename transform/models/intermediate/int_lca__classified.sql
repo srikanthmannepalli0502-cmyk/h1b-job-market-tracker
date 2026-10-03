@@ -1,12 +1,17 @@
 -- Adds role family (from seeds/role_family_rules.csv) and seniority from the job title.
 -- Titles repeat a lot, so each distinct title is classified once and joined back.
+--
+-- The rules are read from the seed when the model compiles and written into a CASE
+-- chain as constant patterns. Joining titles to the rules table instead makes DuckDB
+-- recompile every regex for every (title, rule) pair: ~3M compilations, 10+ minutes.
+
+{% set rules_sql %}
+    select role_family, pattern from {{ ref('role_family_rules') }} order by priority
+{% endset %}
+{% set rules = run_query(rules_sql).rows if execute else [] %}
 
 with cases as (
     select * from {{ ref('int_lca__latest') }}
-),
-
-rules as (
-    select * from {{ ref('role_family_rules') }}
 ),
 
 titles as (
@@ -14,10 +19,14 @@ titles as (
 ),
 
 title_roles as (
-    select t.job_title_lower, r.role_family, r.is_data_role
-    from titles t
-    join rules r on regexp_matches(t.job_title_lower, r.pattern)
-    qualify row_number() over (partition by t.job_title_lower order by r.priority) = 1
+    select
+        job_title_lower,
+        case
+            {%- for rule in rules %}
+            when regexp_matches(job_title_lower, '{{ rule[1] | replace("'", "''") }}') then '{{ rule[0] }}'
+            {%- endfor %}
+        end as role_family
+    from titles
 ),
 
 title_seniority as (
@@ -32,21 +41,28 @@ title_seniority as (
             else 'mid'
         end as seniority
     from titles
+),
+
+classified as (
+    select
+        c.*,
+        case
+            when r.role_family is not null then r.role_family
+            -- DOL's Information Security Analysts code catches security titles the rules miss.
+            -- The title must still look like security work: consulting firms file generic
+            -- titles such as "Manager" under this code.
+            when c.soc_code = '15-1212'
+             and regexp_matches(c.job_title_lower, 'secur|threat|vulnerab|risk|privacy|forensic') then 'cybersecurity'
+            else 'other'
+        end                              as role_family,
+        coalesce(s.seniority, 'mid')     as seniority
+    from cases c
+    left join title_roles r using (job_title_lower)
+    left join title_seniority s using (job_title_lower)
 )
 
 select
-    c.*,
-    case
-        when r.role_family is not null then r.role_family
-        -- DOL's Information Security Analysts code catches security titles the rules miss.
-        -- The title must still look like security work: consulting firms file generic
-        -- titles such as "Manager" under this code.
-        when c.soc_code = '15-1212'
-         and regexp_matches(c.job_title_lower, 'secur|threat|vulnerab|risk|privacy|forensic') then 'cybersecurity'
-        else 'other'
-    end                               as role_family,
-    coalesce(r.is_data_role, false)   as is_data_role,
-    coalesce(s.seniority, 'mid')      as seniority
-from cases c
-left join title_roles r using (job_title_lower)
-left join title_seniority s using (job_title_lower)
+    classified.*,
+    coalesce(rules.is_data_role, false) as is_data_role
+from classified
+left join {{ ref('role_family_rules') }} rules using (role_family)

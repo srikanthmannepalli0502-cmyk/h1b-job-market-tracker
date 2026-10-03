@@ -47,18 +47,46 @@ def upload(account: str) -> int:
     return uploaded
 
 
-def trigger(function_app: str, resource_group: str) -> None:
-    """Call the Function's on-demand endpoint (fetches the function key with az)."""
-    key = subprocess.run(
+def trigger(account: str, function_app: str, resource_group: str, timeout_s: int = 1800) -> None:
+    """Start the timer function now and wait until every raw file has an up-to-date manifest.
+
+    Uses the admin endpoint (POST /admin/functions/scan_raw), which runs the function in the
+    background. HTTP-triggered calls are cut off by Azure after 230 seconds, too short for
+    several large workbooks.
+    """
+    import time
+    import urllib.request
+
+    master_key = subprocess.run(
         ["az", "functionapp", "keys", "list", "-g", resource_group, "-n", function_app,
-         "--query", "functionKeys.default", "-o", "tsv"],
+         "--query", "masterKey", "-o", "tsv"],
         check=True, capture_output=True, text=True, shell=sys.platform == "win32",
     ).stdout.strip()
-    import urllib.request
-    req = urllib.request.Request(f"https://{function_app}.azurewebsites.net/api/process?code={key}", method="POST")
-    print("processing (large files take a few minutes) ...", flush=True)
-    with urllib.request.urlopen(req, timeout=1800) as resp:
-        print(json.dumps(json.load(resp)["counts"]))
+    req = urllib.request.Request(
+        f"https://{function_app}.azurewebsites.net/admin/functions/scan_raw",
+        data=b'{"input": ""}', method="POST",
+        headers={"x-functions-key": master_key, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        print(f"started scan_raw (HTTP {resp.status}); waiting for manifests ...", flush=True)
+
+    service = BlobServiceClient(f"https://{account}.blob.core.windows.net", credential=AzureCliCredential())
+    raw, bronze = service.get_container_client("raw"), service.get_container_client("bronze")
+    expected = {Path(b.name).stem: b.etag for b in raw.list_blobs(name_starts_with="lca/") if parse_name(Path(b.name))}
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        done = {}
+        for b in bronze.list_blobs(name_starts_with="_manifest/"):
+            m = json.loads(bronze.download_blob(b.name).readall())
+            if expected.get(Path(m["source_file"]).stem) == m["source_etag"]:
+                done[m["source_file"]] = m
+        print(f"  {len(done)}/{len(expected)} processed", flush=True)
+        if len(done) == len(expected):
+            for name, m in sorted(done.items()):
+                print(f"  {name}: {m['rows']:,} rows, {m['seconds']}s")
+            return
+        time.sleep(30)
+    sys.exit("timed out waiting for the Function; check App Insights logs")
 
 
 if __name__ == "__main__":
@@ -72,4 +100,4 @@ if __name__ == "__main__":
     if args.process:
         if not args.function_app:
             sys.exit("--function-app is required with --process")
-        trigger(args.function_app, args.resource_group)
+        trigger(args.account, args.function_app, args.resource_group)

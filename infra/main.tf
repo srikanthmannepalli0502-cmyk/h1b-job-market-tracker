@@ -135,6 +135,8 @@ resource "azurerm_function_app_flex_consumption" "ingest" {
     LAKE_BLOB_ENDPOINT = azurerm_storage_account.lake.primary_blob_endpoint
     RAW_CONTAINER      = "raw"
     BRONZE_CONTAINER   = "bronze"
+    # $HOME is read-only on Flex Consumption; DuckDB installs its excel extension here.
+    DUCKDB_EXTENSION_DIR = "/tmp/duckdb_extensions"
   }
 
   site_config {

@@ -102,6 +102,14 @@ def test_replaced_file_is_reprocessed(lake):
     assert df["case_number"].to_list() == ["I-200-2"]
 
 
+def test_new_reader_version_reprocesses(lake, monkeypatch):
+    raw, bronze = lake
+    lake_ingest.process_new(raw, bronze)
+    monkeypatch.setattr(lake_ingest, "READER_VERSION", "next-version")
+    (result,) = lake_ingest.process_new(raw, bronze)
+    assert result["status"] == "processed" and result["reader_version"] == "next-version"
+
+
 def test_force_reprocesses(lake):
     raw, bronze = lake
     lake_ingest.process_new(raw, bronze)

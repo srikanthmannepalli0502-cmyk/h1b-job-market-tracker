@@ -7,8 +7,9 @@ Parquet in bronze/lca/ with the same allow-list ingestion used locally
     bronze/_manifest/LCA_Disclosure_Data_FY2025_Q4.json
     {"source_file": ..., "source_etag": ..., "sha256": ..., "rows": ..., ...}
 
-A file is skipped when its manifest already records the raw blob's current ETag,
-so re-running is safe and cheap.
+A file is skipped when its manifest already records the raw blob's current ETag and
+the current READER_VERSION, so re-running is safe and cheap, and changing the
+ingestion logic (bumping READER_VERSION) reprocesses everything automatically.
 
 Works with any object exposing the azure.storage.blob ContainerClient methods
 used below, which keeps it testable without Azure.
@@ -22,7 +23,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
-from pipeline.ingest_lca import ingest_file, parse_name
+from pipeline.ingest_lca import READER_VERSION, ingest_file, parse_name
 
 RAW_PREFIX = "lca/"
 BRONZE_PREFIX = "lca/"
@@ -58,7 +59,7 @@ def process_new(raw, bronze, force: bool = False) -> list[dict]:
 
         etag = item.etag
         manifest = None if force else read_manifest(bronze, source_file)
-        if manifest and manifest.get("source_etag") == etag:
+        if manifest and manifest.get("source_etag") == etag and manifest.get("reader_version") == READER_VERSION:
             results.append({"source_file": source_file, "status": "unchanged"})
             continue
 
@@ -87,6 +88,7 @@ def process_one(raw, bronze, blob_name: str, source_file: str, etag: str, fy: in
         "rows": df.height,
         "columns": df.width,
         "bronze_blob": target,
+        "reader_version": READER_VERSION,
         "bronze_bytes": buf.getbuffer().nbytes,
         "processed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.monotonic() - start, 1),

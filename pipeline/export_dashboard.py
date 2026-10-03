@@ -139,7 +139,8 @@ def export(con) -> None:
             select employer_key from by_role group by 1 having sum(apps) >= ?
         )
         select b.* exclude (employer_key) from by_role b join eligible using (employer_key)
-        order by apps desc
+        -- full tie-break so rebuilds produce byte-identical files (clean git diffs)
+        order by apps desc, employer_key, fy, role
     """, [*roles, MIN_EMPLOYER_APPS])))
 
     write("states", columnar(rows(con, f"""
@@ -149,6 +150,7 @@ def export(con) -> None:
         where is_certified and is_h1b and role_family in ({placeholders}) and worksite_state is not null
         group by all
         having count(*) >= 5
+        order by fiscal_year, state, role_family
     """, roles)))
 
 
