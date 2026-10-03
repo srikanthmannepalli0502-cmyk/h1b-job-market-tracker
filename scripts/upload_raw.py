@@ -19,7 +19,7 @@ from azure.identity import AzureCliCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pipeline.ingest_lca import RAW_DIR, parse_name  # noqa: E402
+from pipeline.ingest_lca import RAW_DIR, READER_VERSION, parse_name  # noqa: E402
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -78,7 +78,7 @@ def trigger(account: str, function_app: str, resource_group: str, timeout_s: int
         done = {}
         for b in bronze.list_blobs(name_starts_with="_manifest/"):
             m = json.loads(bronze.download_blob(b.name).readall())
-            if expected.get(Path(m["source_file"]).stem) == m["source_etag"]:
+            if expected.get(Path(m["source_file"]).stem) == m["source_etag"] and m.get("reader_version") == READER_VERSION:
                 done[m["source_file"]] = m
         print(f"  {len(done)}/{len(expected)} processed", flush=True)
         if len(done) == len(expected):
