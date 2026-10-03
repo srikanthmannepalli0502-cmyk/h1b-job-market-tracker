@@ -34,6 +34,7 @@ jobs:
 
       - name: Download manifests
         run: >
+          mkdir -p build &&
           az storage blob download-batch --account-name "${{ vars.LAKE_ACCOUNT }}"
           --source bronze --pattern '_manifest/*.json' --destination build
           --auth-mode login --only-show-errors
@@ -41,7 +42,7 @@ jobs:
       - name: Compare with the data the dashboard was built from
         id: check
         run: |
-          python - <<'EOF'
+          python3 - <<'EOF'
           import json, os, pathlib
           lake = sorted((m["source_file"], m["sha256"]) for m in
                         (json.loads(p.read_text()) for p in pathlib.Path("build/_manifest").glob("*.json")))
@@ -56,6 +57,7 @@ jobs:
       - name: Download bronze Parquet
         if: steps.check.outputs.changed == 'true' || inputs.force
         run: >
+          mkdir -p data/bronze &&
           az storage blob download-batch --account-name "${{ vars.LAKE_ACCOUNT }}"
           --source bronze --pattern 'lca/*.parquet' --destination data/bronze
           --auth-mode login --only-show-errors && ls -la data/bronze/lca
