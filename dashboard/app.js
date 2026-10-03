@@ -114,26 +114,32 @@ function renderTiles() {
     ? `Middle 50%: ${fmtMoney(all.p25)} – ${fmtMoney(all.p75)} · full-time roles`
     : "";
 
-  const t = DATA.trend.rows.find((r) => r.role_family === role);
+  const tr = currentTrend();
+  const t = tr && tr.rows.find((r) => r.role_family === role);
   const tile = $("tile-trend");
   tile.className = "tile-value";
   if (t && t.prior > 0) {
     const pct = (t.current / t.prior - 1) * 100;
     tile.textContent = `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%`;
     tile.classList.add(pct >= 0 ? "delta-up" : "delta-down");
-    $("tile-trend-note").textContent = `${fmtInt(t.current)} vs ${fmtInt(t.prior)}, ${trendPeriod()}`;
+    $("tile-trend-note").textContent = `${fmtInt(t.current)} vs ${fmtInt(t.prior)}, ${trendPeriod(tr)}`;
   } else {
     tile.textContent = "–";
-    $("tile-trend-note").textContent = "";
+    $("tile-trend-note").textContent = tr ? "" : `No earlier year loaded to compare FY${fy} with`;
   }
 }
 
-function trendPeriod() {
-  const m = DATA.trend.months;
+/** Year-over-year data for the selected fiscal year, or null if no prior year is loaded. */
+function currentTrend() {
+  return DATA.trend.by_fy[String(state.fy)] || null;
+}
+
+function trendPeriod(tr) {
+  const fy = state.fy;
+  if (tr.months.length === 12) return `full year FY${fy} vs FY${fy - 1}`;
   // Fiscal year order: Oct..Sep
-  const order = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((x) => m.includes(x));
-  const fy = DATA.trend.current_fy;
-  return `${MONTHS[order[0] - 1]}–${MONTHS[order[order.length - 1] - 1]} of FY${fy} vs FY${fy - 1}`;
+  const order = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((x) => tr.months.includes(x));
+  return `${MONTHS[order[0] - 1]}–${MONTHS[order[order.length - 1] - 1]} of FY${fy} vs the same months of FY${fy - 1}`;
 }
 
 /* ---------- sponsors table ---------- */
@@ -213,11 +219,20 @@ function renderWages() {
 /* ---------- year-over-year by role (diverging bars) ---------- */
 
 function renderTrend() {
-  const rows = DATA.trend.rows
+  const tr = currentTrend();
+  if (!tr) {
+    $("trend-sub").textContent = `No earlier fiscal year is loaded to compare FY${state.fy} with. Pick a later year.`;
+    $("trend-chart").innerHTML = "";
+    $("trend-table").innerHTML = "";
+    return;
+  }
+  const rows = tr.rows
     .filter((r) => r.prior > 0)
     .map((r) => ({ ...r, pct: (r.current / r.prior - 1) * 100 }))
     .sort((a, b) => b.pct - a.pct);
-  $("trend-sub").textContent = `Certified H-1B applications, ${trendPeriod()} (same months, so the partial year compares fairly).`;
+  $("trend-sub").textContent = tr.months.length === 12
+    ? `Certified H-1B applications, ${trendPeriod(tr)}.`
+    : `Certified H-1B applications, ${trendPeriod(tr)}, so the partial year compares fairly.`;
 
   // Symmetric around zero so growth and decline bars are visually comparable.
   // Scale to the second-largest change: a single outlier (e.g. +139%) would
@@ -252,7 +267,7 @@ function renderTrend() {
   bindTips(el);
 
   $("trend-table").innerHTML = table(
-    [{ label: "Role" }, { label: `FY${DATA.trend.current_fy - 1}`, num: true }, { label: `FY${DATA.trend.current_fy}`, num: true }, { label: "Change", num: true }],
+    [{ label: "Role" }, { label: `FY${state.fy - 1}`, num: true }, { label: `FY${state.fy}`, num: true }, { label: "Change", num: true }],
     rows.map((r) => [roleLabel(r.role_family), fmtInt(r.prior), fmtInt(r.current), `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(1)}%`]),
   );
 }

@@ -7,34 +7,39 @@
 
 Which US employers sponsor H-1B visas for **data, AI, cybersecurity, cloud and DevOps roles**,
 how many, and what they pay. Built from the U.S. Department of Labor's public Labor Condition
-Application (LCA) disclosure data: **1.14 million cases, FY2024 Q4 through FY2026 Q3**.
+Application (LCA) disclosure data: **1.57 million cases, FY2024 through FY2026 Q3** (two complete
+fiscal years plus FY2026 to date, all from the post-ChatGPT market).
 
 I'm an international student looking for data roles, and I wanted to aim my applications at
 employers that actually sponsor them. This project turns DOL's quarterly Excel releases into a
 tested warehouse and a dashboard that answers that question for the main tech role families.
 
-## What the data shows (FY2025, certified H-1B LCAs)
+## What the data shows (certified H-1B LCAs)
 
-| Role | Certified applications | Median offered salary | Level I (entry) median | Change, Oct–Jun FY26 vs FY25 |
-|---|---:|---:|---:|---:|
-| Data Analyst | 8,406 | $106K | $78K | −3.9% |
-| BI Analyst / Engineer | 4,279 | $112K | $83K | −19.6% |
-| Data Engineer | 12,938 | $128K | $88K | −6.7% |
-| Analytics Engineer | 344 | $128K | $87K | +15.6% |
-| Data Scientist | 12,259 | $144K | $90K | +6.0% |
-| AI Engineer / Scientist | 1,416 | $134K | $96K | **+138.7%** |
-| ML Engineer | 2,446 | $178K | $132K | +6.8% |
-| Cybersecurity | 5,221 | $135K | $90K | −1.9% |
-| Cloud Engineer / Architect | 4,668 | $137K | $91K | −12.1% |
-| DevOps / SRE / Platform | 6,441 | $125K | $91K | −10.3% |
+| Role | FY2025 applications | Median offered salary | Level I (entry) median | FY2025 vs FY2024 | FY2026 vs FY2025 (Oct–Jun) |
+|---|---:|---:|---:|---:|---:|
+| Data Analyst | 8,406 | $106K | $78K | +13.9% | −3.9% |
+| BI Analyst / Engineer | 4,279 | $112K | $83K | +0.9% | −19.6% |
+| Data Engineer | 12,938 | $128K | $88K | +13.0% | −6.7% |
+| Analytics Engineer | 344 | $128K | $87K | +12.4% | +15.6% |
+| Data Scientist | 12,259 | $144K | $90K | +15.2% | +6.0% |
+| AI Engineer / Scientist | 1,416 | $134K | $96K | **+123.0%** | **+138.7%** |
+| ML Engineer | 2,446 | $178K | $132K | +35.5% | +6.8% |
+| Cybersecurity | 5,221 | $135K | $90K | +2.5% | −1.9% |
+| Cloud Engineer / Architect | 4,668 | $137K | $91K | +4.9% | −12.1% |
+| DevOps / SRE / Platform | 6,441 | $125K | $91K | −0.3% | −10.3% |
+| Software Engineer (for comparison) | 156,262 | | | +0.8% | −9.3% |
 
-<sub>Salaries: full-time roles with a valid wage. Wage level I is DOL's entry tier. Role labels come from
-job-title rules, so counts are approximate. "AI" and "ML" are separate: titles naming AI, GenAI or LLMs
-count as AI; classic machine-learning engineering counts as ML.</sub>
+<sub>Salaries: full-time FY2025 roles with a valid wage. Wage level I is DOL's entry tier. Role labels come
+from job-title rules, so counts are approximate. "AI" and "ML" are separate: titles naming AI, GenAI or
+LLMs count as AI; classic machine-learning engineering counts as ML. FY2026 is compared with the same
+October–June months of FY2025.</sub>
 
-- **AI roles more than doubled** (1,116 → 2,664 over the same Oct–Jun months), while most other tech
-  sponsorship shrank: cloud −12%, DevOps −10%, BI −20%, software engineering −9%.
-- **Cybersecurity held steady** (−1.9%), with one firm (Ernst & Young) filing about 1 in 10 of those applications.
+- **AI growth is sustained, not a spike:** AI-titled roles more than doubled two years running
+  (635 → 1,416 in FY2025, then 1,116 → 2,664 for Oct–Jun).
+- **The pullback is recent.** In FY2025 data roles grew 13–15%; in FY2026 most tech sponsorship is
+  shrinking (cloud −12%, DevOps −10%, BI −20%, software engineering −9%), with AI the clear exception.
+- **Cybersecurity is flat** both years, with one firm (Ernst & Young) filing about 1 in 10 of those applications.
 - **The same work hides under different titles.** Amazon, the largest sponsor for analyst-type work,
   files those roles as "Business Intelligence Engineer", never "Data Analyst".
 
@@ -58,7 +63,7 @@ flowchart LR
 | Layer | Tech | Notes |
 |---|---|---|
 | Data lake | ADLS Gen2 (hierarchical namespace) | `raw` and `bronze` zones. Account keys and SAS are disabled: Entra ID (RBAC) only. 7-day soft delete. |
-| Ingestion | Azure Function (Python, Flex Consumption) + Polars/fastexcel | Every 6 hours (or on demand over HTTP) converts new raw workbooks to Parquet and writes a manifest (ETag, SHA-256, row count). Skips files whose ETag hasn't changed. The same allow-list code runs locally. 718 MB of Excel becomes 44 MB of Parquet. |
+| Ingestion | Azure Function (Python, Flex Consumption) + DuckDB streaming xlsx reader | Every 6 hours (or on demand over HTTP) converts new raw workbooks to Parquet and writes a manifest (ETag, SHA-256, row count). Skips files whose ETag and reader version haven't changed. The same allow-list code runs locally; peak memory ~1.5 GB for a 250 MB workbook (a whole-sheet reader needed ~3 GB and was killed in Azure). 959 MB of Excel becomes 60 MB of Parquet. |
 | Warehouse | DuckDB + dbt | 9 models, 32 data tests (uniqueness, accepted values, relationships, dedup completeness, wage sanity). |
 | Classification | dbt seed of regex rules | Transparent and reviewable: [`role_family_rules.csv`](transform/seeds/role_family_rules.csv); first match wins, so order resolves overlaps ("Cloud Data Engineer" is data, "DevSecOps" is security). DOL's security-analyst occupation code (SOC 15-1212) backs up the security rules. Distinct titles are classified once, which halved build time. |
 | Dashboard | Plain HTML/CSS/JS | No framework. Colorblind-validated palette, light and dark mode, every chart has a table view, works at phone width. |
@@ -73,7 +78,7 @@ flowchart LR
   contacts, attorneys and preparers. Ingestion uses an *allow-list* of employer- and job-level columns,
   so a new column DOL adds is excluded until reviewed. A test enforces this.
 - **Quarterly vs. year-to-date files.** FY2024–FY2025 are published one quarter per file; FY2026 Q3 is
-  cumulative. 13,923 cases appear in two releases with different statuses (e.g. certified, later
+  cumulative. 24,956 cases appear in more than one release with different statuses (e.g. certified, later
   withdrawn); the latest release wins, and a test checks no case is lost.
 - **Wages** are converted to yearly amounts (hourly × 2,080, etc.). The data contains typos such as a
   $1.1 billion salary and $705,000/hour, so values outside $15K–$1M are excluded from salary statistics

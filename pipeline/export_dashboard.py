@@ -97,26 +97,37 @@ def export(con) -> None:
         "min_employer_apps": MIN_EMPLOYER_APPS,
     })
 
-    # Year-over-year comparison over the same months, so a partial year is compared fairly.
-    latest = max(c["fiscal_year"] for c in coverage)
-    latest_months = rows(con, """
-        select distinct month(decision_date) as m from fct_lca_applications where fiscal_year = ?
-    """, [latest])
-    months = [r["m"] for r in latest_months]
-    month_ph = ",".join("?" * len(months))
+    # Year-over-year comparison for every fiscal year that has a prior year loaded,
+    # over the months both years cover, so a partial year is compared fairly.
     trend_roles = [*roles, *COMPARISON_ROLES]
     trend_ph = ",".join("?" * len(trend_roles))
-    trend_rows = rows(con, f"""
-        select role_family,
-               count(*) filter (where fiscal_year = ? - 1) as prior,
-               count(*) filter (where fiscal_year = ?)     as current
-        from fct_lca_applications
-        where is_certified and is_h1b
-          and month(decision_date) in ({month_ph})
-          and role_family in ({trend_ph})
-        group by 1 order by current desc
-    """, [latest, latest, *months, *trend_roles])
-    write("trend", {"current_fy": latest, "months": sorted(months), "rows": trend_rows})
+    month_sets = {
+        r["fiscal_year"]: set(r["months"])
+        for r in rows(con, """
+            select fiscal_year, list(distinct month(decision_date)) as months
+            from fct_lca_applications group by 1
+        """)
+    }
+    by_fy = {}
+    for fy, fy_months in sorted(month_sets.items()):
+        months = sorted(fy_months & month_sets.get(fy - 1, set()))
+        if not months:
+            continue
+        month_ph = ",".join("?" * len(months))
+        by_fy[str(fy)] = {
+            "months": months,
+            "rows": rows(con, f"""
+                select role_family,
+                       count(*) filter (where fiscal_year = ? - 1) as prior,
+                       count(*) filter (where fiscal_year = ?)     as current
+                from fct_lca_applications
+                where is_certified and is_h1b
+                  and month(decision_date) in ({month_ph})
+                  and role_family in ({trend_ph})
+                group by 1 order by current desc, role_family
+            """, [fy, fy, *months, *trend_roles]),
+        }
+    write("trend", {"by_fy": by_fy})
 
     write("wages", columnar(rows(con, f"""
         select fiscal_year, role_family, wage_level, worksite_state, applications,
