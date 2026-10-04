@@ -1,3 +1,4 @@
 -r requirements.txt
+azure-storage-blob>=12.19
 pytest>=8
 xlsxwriter>=3.1

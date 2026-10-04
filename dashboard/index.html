@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>H-1B Tech Jobs Tracker</title>
   <meta name="description" content="Which US employers sponsor H-1B visas for data, AI, cybersecurity, cloud and DevOps roles, and what they pay. Built from U.S. Department of Labor LCA disclosure data.">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <header class="page-header">
@@ -41,6 +41,25 @@
         <div class="tile-value" id="tile-trend">&ndash;</div>
         <div class="tile-note" id="tile-trend-note"></div>
       </div>
+    </section>
+
+    <section class="card card-wide ask" aria-labelledby="ask-title"
+             data-ask-url="https://func-h1b-ask-ljg2no.azurewebsites.net/api/ask">
+      <h2 id="ask-title">Ask the data</h2>
+      <p class="card-sub">Ask in plain English. An AI model (Azure OpenAI) writes a read-only SQL query over
+        the tables behind this dashboard, runs it, and summarizes the result. Check the SQL and table below the answer.</p>
+      <form id="ask-form" class="ask-form">
+        <label for="ask-input" class="visually-hidden">Your question</label>
+        <input id="ask-input" type="text" maxlength="300" autocomplete="off"
+               placeholder="e.g. Which companies sponsor the most data analysts in Texas?">
+        <button type="submit" id="ask-button">Ask</button>
+      </form>
+      <div class="ask-examples" aria-label="Example questions">
+        <button type="button" class="chip">Which big data analyst sponsors have the lowest new-hire denial rates?</button>
+        <button type="button" class="chip">What does an entry-level data engineer earn in New York?</button>
+        <button type="button" class="chip">How fast are AI engineer roles growing, and in which states?</button>
+      </div>
+      <div id="ask-result" class="ask-result" aria-live="polite"></div>
     </section>
 
     <section class="card card-wide" aria-labelledby="sponsors-title">
@@ -128,6 +147,6 @@
   </main>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

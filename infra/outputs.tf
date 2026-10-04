@@ -20,3 +20,16 @@ output "function_process_url" {
 output "resource_group" {
   value = azurerm_resource_group.main.name
 }
+
+output "ask_function_app_name" {
+  description = "Set as the ASK_FUNCTION_APP_NAME GitHub variable."
+  value       = azurerm_function_app_flex_consumption.ask.name
+}
+
+output "ask_api_url" {
+  value = "https://${azurerm_function_app_flex_consumption.ask.default_hostname}/api/ask"
+}
+
+output "openai_endpoint" {
+  value = azurerm_cognitive_account.openai.endpoint
+}

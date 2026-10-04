@@ -62,6 +62,10 @@ flowchart LR
     BRONZE -->|daily: only if<br/>manifests changed| GHA[GitHub Actions<br/>dbt build + tests on DuckDB]
     GHA --> JSON[Compact JSON]
     JSON --> WEB[Static dashboard<br/>Azure Storage /h1b/]
+    GHA -->|gold tables| GOLD[(ADLS Gen2<br/>gold/marts)]
+    WEB -->|"Ask the data"| ASK[Ask Function<br/>anonymous, CORS-limited]
+    ASK -->|question to SQL,<br/>answer summary| AOAI[Azure OpenAI<br/>gpt-5-mini]
+    GOLD -->|read-only| ASK
 ```
 
 | Layer | Tech | Notes |
@@ -75,6 +79,27 @@ flowchart LR
 | Infrastructure | Terraform | Resource group, lake, Function, monitoring (log cap 0.1 GB/day) and least-privilege role assignments. |
 | CI | GitHub Actions | Builds a synthetic dataset, runs the full dbt build, 32 pytest tests and `terraform validate` on every push. |
 | Deploy | GitHub Actions + Azure | Logs in with OIDC (no stored secrets). Deploys the Function and the dashboard (gzip-compressed data under `/h1b/`), then smoke-tests both. |
+
+## "Ask the data" assistant
+
+Type a question on the dashboard ("Which companies sponsor the most data analysts in Texas?"). An Azure
+Function asks **Azure OpenAI (gpt-5-mini)** to write DuckDB SQL over six curated gold tables, runs it,
+and asks the model to summarize the result in 1-3 sentences. The SQL and the full result table are shown,
+so every answer can be checked.
+
+It is a public, anonymous endpoint, so it is built defensively:
+
+| Layer | Protection |
+|---|---|
+| Identity | Separate Function App whose managed identity can only **read** gold tables, write its usage counter, and call the model. No access to raw/bronze data. Azure OpenAI has key auth disabled. |
+| Cost | Deployment capped at 10K tokens/minute, plus a **daily question cap** (300) kept in a blob with ETag-conditional writes so concurrent instances can't overshoot. ~$0.003 per question. |
+| SQL | Model output must be one `SELECT` over allowed tables, checked with DuckDB's own parser (`json_serialize_sql`) plus a keyword deny-list; one retry with the error message. |
+| Database | In-memory DuckDB holding only gold tables, with `enable_external_access = false` and `lock_configuration = true` (no file or network reads even if a check were bypassed), 1 GB memory, 8 s timeout, 200-row cap. |
+| Browser | CORS limited to the dashboard's origin; questions capped at 300 characters. |
+| Answers | Prompt rules against misleading stats: rates need 20+ decisions, growth needs a base of 20+, state questions must use worksite (not HQ) state. Found by testing with real questions. |
+
+Tests (`tests/test_ask.py`) cover the guard against 11 attack patterns, file access being impossible,
+the retry path, the row cap, and the daily cap under a concurrent update, all without calling Azure.
 
 ## Data decisions
 
@@ -146,12 +171,14 @@ synthetic dataset, and the same commands work on it (that's what CI does).
 
 ```
 infra/                   Terraform: lake, Function, monitoring, RBAC
-functions/               Azure Function (timer + HTTP) and lake_ingest.py
+functions/               Ingestion Azure Function (timer + HTTP) and lake_ingest.py
+ask/                     "Ask the data" Function: engine, SQL guard, prompts, daily cap
 scripts/                 upload_raw.py, deploy_dashboard.sh
 pipeline/
   ingest_lca.py          DOL bronze ingestion (allow-listed columns), shared by CLI and Function
   ingest_uscis.py        USCIS bronze ingestion, shared by CLI and Function
   export_dashboard.py    warehouse -> compact JSON for the dashboard
+  export_gold.py         warehouse -> gold tables for the assistant
 transform/               dbt project (DuckDB)
   models/staging/        typing, wage annualization, employer keys
   models/intermediate/   latest release per case, role + seniority classification
@@ -169,10 +196,10 @@ tests/                   pytest + synthetic fixture generator
 - [x] Land raw files in Azure Data Lake Storage Gen2; Azure Function converts and registers new releases
 - [x] Daily refresh workflow: rebuild only when the lake changes
 - [ ] Event Grid trigger instead of the 6-hour timer (needs a two-stage deploy for the subscription)
-- [ ] Databricks notebook for loading multi-year history (FY2020+) into Delta tables
+- [x] ~~Databricks history load (FY2020+)~~ Decided against: pre-2024 data describes a different, pre-AI market. Completed FY2024 instead, giving two full years for comparisons.
 - [ ] Power BI report on the marts (screenshots in this README)
 - [x] USCIS H-1B Employer Data Hub join (approvals/denials per employer, matched on name + tax ID digits)
-- [ ] "Ask the data" assistant: natural language to SQL over the marts
+- [x] "Ask the data" assistant: natural language to SQL over gold tables (Azure OpenAI, guarded)
 
 ## Disclaimer
 

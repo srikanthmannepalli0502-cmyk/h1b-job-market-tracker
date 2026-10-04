@@ -203,6 +203,24 @@ details table { margin-top: 8px; }
 .tooltip strong { display: block; margin-bottom: 2px; }
 .tooltip .muted { color: var(--text-secondary); }
 
+/* Ask the data */
+.ask { margin-bottom: 12px; }
+.ask-form { display: flex; gap: 8px; }
+.ask-form input { flex: 1; min-width: 0; font: inherit; color: var(--text-primary); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; min-height: 40px; }
+.ask-form button { background: var(--series-1); border-color: transparent; color: #fff; font-weight: 600; padding: 0 18px; }
+.ask-form button:disabled { opacity: 0.6; cursor: wait; }
+.ask-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 0.8rem; padding: 4px 10px; min-height: 28px; border-radius: 999px; color: var(--text-secondary); }
+.ask-result { margin-top: 14px; }
+.ask-result:empty { display: none; }
+.ask-answer { font-size: 0.95rem; margin: 0 0 10px; }
+.ask-error { color: var(--series-neg); margin: 0; }
+.ask-status { color: var(--text-muted); margin: 0; }
+.ask-result pre { white-space: pre-wrap; font-size: 0.8rem; background: var(--page); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px; overflow-x: auto; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* Notes */
 .notes { margin: 24px 0 48px; color: var(--text-secondary); font-size: 0.875rem; }
 .notes h2 { color: var(--text-primary); }

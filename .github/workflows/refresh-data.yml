@@ -77,6 +77,14 @@ jobs:
           pip install -r requirements.txt
           dbt build --project-dir transform --profiles-dir transform
           python -m pipeline.export_dashboard
+          python -m pipeline.export_gold
+
+      - name: Publish gold tables for the ask assistant
+        if: steps.check.outputs.changed == 'true' || inputs.force
+        run: >
+          az storage blob upload-batch --account-name "${{ vars.LAKE_ACCOUNT }}"
+          --destination gold --destination-path marts --source data/gold
+          --overwrite --auth-mode login --only-show-errors
 
       - name: Deploy dashboard
         if: steps.check.outputs.changed == 'true' || inputs.force

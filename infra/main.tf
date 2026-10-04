@@ -54,7 +54,7 @@ resource "azurerm_storage_account" "lake" {
 }
 
 resource "azurerm_storage_container" "lake" {
-  for_each              = toset(["raw", "bronze"])
+  for_each              = toset(["raw", "bronze", "gold", "usage"])
   name                  = each.key
   storage_account_id    = azurerm_storage_account.lake.id
   container_access_type = "private"

@@ -37,3 +37,4 @@ infra/*.tfvars
 
 # temporary CI simulation folder
 .ci_check/
+data/gold/

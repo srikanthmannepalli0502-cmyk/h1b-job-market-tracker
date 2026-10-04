@@ -318,6 +318,48 @@ function renderStates() {
   );
 }
 
+/* ---------- ask the data ---------- */
+
+function formatCell(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return String(v);
+}
+
+function setupAsk() {
+  const section = document.querySelector(".ask");
+  const url = section && section.dataset.askUrl;
+  if (!url) return;
+  const form = $("ask-form"), input = $("ask-input"), button = $("ask-button"), out = $("ask-result");
+
+  async function submit(question) {
+    question = question.trim();
+    if (!question) return;
+    button.disabled = true;
+    out.innerHTML = `<p class="ask-status">Thinking… (usually 5–15 seconds)</p>`;
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status}).`);
+      const headers = (data.columns || []).map((c) => ({ label: c, num: (data.rows || []).some((r) => typeof r[data.columns.indexOf(c)] === "number") }));
+      out.innerHTML = `
+        <p class="ask-answer">${esc(data.answer || "")}</p>
+        ${data.rows && data.rows.length ? `<div class="table-scroll">${table(headers, data.rows.map((r) => r.map(formatCell)))}</div>` : ""}
+        ${data.truncated ? `<p class="ask-status">Showing the first ${data.rows.length} rows.</p>` : ""}
+        ${data.sql ? `<details><summary>Show SQL</summary><pre>${esc(data.sql)}</pre></details>` : ""}`;
+    } catch (err) {
+      out.innerHTML = `<p class="ask-error">${esc(err.message || "Something went wrong.")}</p>`;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  form.addEventListener("submit", (e) => { e.preventDefault(); submit(input.value); });
+  document.querySelectorAll(".ask-examples .chip").forEach((chip) => {
+    chip.addEventListener("click", () => { input.value = chip.textContent; submit(chip.textContent); });
+  });
+}
+
 /* ---------- wiring ---------- */
 
 function renderAll() {
@@ -364,6 +406,7 @@ async function main() {
   const updated = new Date(DATA.meta.generated_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   $("coverage").textContent = `Data loaded: ${cov}. Updated ${updated}.`;
   setupFilters();
+  setupAsk();
   renderAll();
 }
 

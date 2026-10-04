@@ -1,0 +1,5 @@
+azure-functions
+azure-identity>=1.15
+azure-storage-blob>=12.19
+duckdb>=1.2
+openai>=1.60
