@@ -320,10 +320,11 @@ function renderStates() {
 
 /* ---------- ask the data ---------- */
 
-function formatCell(v) {
+function formatCell(v, column = "") {
   if (v === null || v === undefined) return "";
-  if (typeof v === "number") return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return String(v);
+  if (typeof v !== "number") return String(v);
+  if (/year/i.test(column)) return String(v); // 2025, not "2,025"
+  return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 function setupAsk() {
@@ -344,7 +345,7 @@ function setupAsk() {
       const headers = (data.columns || []).map((c) => ({ label: c, num: (data.rows || []).some((r) => typeof r[data.columns.indexOf(c)] === "number") }));
       out.innerHTML = `
         <p class="ask-answer">${esc(data.answer || "")}</p>
-        ${data.rows && data.rows.length ? `<div class="table-scroll">${table(headers, data.rows.map((r) => r.map(formatCell)))}</div>` : ""}
+        ${data.rows && data.rows.length ? `<div class="table-scroll">${table(headers, data.rows.map((r) => r.map((v, i) => formatCell(v, data.columns[i]))))}</div>` : ""}
         ${data.truncated ? `<p class="ask-status">Showing the first ${data.rows.length} rows.</p>` : ""}
         ${data.sql ? `<details><summary>Show SQL</summary><pre>${esc(data.sql)}</pre></details>` : ""}`;
     } catch (err) {
