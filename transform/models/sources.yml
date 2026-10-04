@@ -13,3 +13,14 @@ sources:
         columns:
           - name: case_number
             tests: [not_null]
+
+      - name: uscis
+        description: >
+          USCIS H-1B Employer Data Hub export (pipeline/ingest_uscis.py), long format:
+          one row per employer location, fiscal year and measure ("New Employment
+          Approval", ...). All text. Employers carry the last 4 digits of their tax ID.
+        meta:
+          external_location: "read_parquet('data/bronze/uscis/*.parquet', union_by_name = true)"
+        columns:
+          - name: measure_name
+            tests: [not_null]

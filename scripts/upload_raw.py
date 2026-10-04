@@ -1,4 +1,7 @@
-"""Upload DOL LCA workbooks from data/raw/lca/ to the lake's raw zone.
+"""Upload raw source files to the lake's raw zone:
+
+    data/raw/lca/LCA_Disclosure_Data_FY{yyyy}_Q{n}.xlsx   -> raw/lca/    (DOL)
+    data/raw/uscis/uscis_h1b_employers_fy{yyyy}.csv       -> raw/uscis/  (USCIS)
 
 Skips files already in the lake with the same size. Uses your `az login`
 identity (the lake has account keys disabled). The ingestion Function picks the
@@ -6,43 +9,65 @@ files up within 6 hours, or immediately with --process.
 
 Usage:
     python scripts/upload_raw.py --account <lake account>             # upload only
-    python scripts/upload_raw.py --account <lake account> --process   # upload + trigger the Function
+    python scripts/upload_raw.py --account <lake account> --process --function-app <name>
 """
 
 import argparse
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from azure.identity import AzureCliCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pipeline.ingest_lca import RAW_DIR, READER_VERSION, parse_name  # noqa: E402
+from pipeline import ingest_lca, ingest_uscis  # noqa: E402
 
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+@dataclass(frozen=True)
+class RawSource:
+    local_dir: Path
+    glob: str
+    prefix: str
+    content_type: str
+    parse: Callable[[Path], object]
+    reader_version: str
+
+
+SOURCES = [
+    RawSource(ingest_lca.RAW_DIR, "*.xlsx", "lca/",
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              ingest_lca.parse_name, ingest_lca.READER_VERSION),
+    RawSource(ingest_uscis.RAW_DIR, "*.csv", "uscis/", "text/csv",
+              ingest_uscis.parse_name, ingest_uscis.READER_VERSION),
+]
+
+
+def service_for(account: str) -> BlobServiceClient:
+    return BlobServiceClient(f"https://{account}.blob.core.windows.net", credential=AzureCliCredential())
 
 
 def upload(account: str) -> int:
-    service = BlobServiceClient(f"https://{account}.blob.core.windows.net", credential=AzureCliCredential())
-    raw = service.get_container_client("raw")
-    existing = {b.name: b.size for b in raw.list_blobs(name_starts_with="lca/")}
-
+    raw = service_for(account).get_container_client("raw")
     uploaded = 0
-    for path in sorted(RAW_DIR.glob("*.xlsx")):
-        if not parse_name(path):
-            print(f"skip  {path.name} (not an LCA disclosure file name)")
-            continue
-        name = f"lca/{path.name}"
-        if existing.get(name) == path.stat().st_size:
-            print(f"skip  {path.name} (already in lake)")
-            continue
-        print(f"upload {path.name} ({path.stat().st_size / 1_048_576:.0f} MB) ...", flush=True)
-        with path.open("rb") as f:
-            raw.upload_blob(name, f, overwrite=True, max_concurrency=4,
-                            content_settings=ContentSettings(content_type=XLSX))
-        uploaded += 1
+    for src in SOURCES:
+        existing = {b.name: b.size for b in raw.list_blobs(name_starts_with=src.prefix)}
+        for path in sorted(src.local_dir.glob(src.glob)):
+            if not src.parse(path):
+                print(f"skip  {path.name} (unrecognized file name)")
+                continue
+            name = f"{src.prefix}{path.name}"
+            if existing.get(name) == path.stat().st_size:
+                print(f"skip  {path.name} (already in lake)")
+                continue
+            print(f"upload {path.name} ({path.stat().st_size / 1_048_576:.0f} MB) ...", flush=True)
+            with path.open("rb") as f:
+                raw.upload_blob(name, f, overwrite=True, max_concurrency=4,
+                                content_settings=ContentSettings(content_type=src.content_type))
+            uploaded += 1
     print(f"{uploaded} file(s) uploaded.")
     return uploaded
 
@@ -70,15 +95,21 @@ def trigger(account: str, function_app: str, resource_group: str, timeout_s: int
     with urllib.request.urlopen(req, timeout=60) as resp:
         print(f"started scan_raw (HTTP {resp.status}); waiting for manifests ...", flush=True)
 
-    service = BlobServiceClient(f"https://{account}.blob.core.windows.net", credential=AzureCliCredential())
+    service = service_for(account)
     raw, bronze = service.get_container_client("raw"), service.get_container_client("bronze")
-    expected = {Path(b.name).stem: b.etag for b in raw.list_blobs(name_starts_with="lca/") if parse_name(Path(b.name))}
+    # stem -> (etag, reader version the manifest must carry)
+    expected = {
+        Path(b.name).stem: (b.etag, src.reader_version)
+        for src in SOURCES
+        for b in raw.list_blobs(name_starts_with=src.prefix)
+        if src.parse(Path(b.name))
+    }
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         done = {}
         for b in bronze.list_blobs(name_starts_with="_manifest/"):
             m = json.loads(bronze.download_blob(b.name).readall())
-            if expected.get(Path(m["source_file"]).stem) == m["source_etag"] and m.get("reader_version") == READER_VERSION:
+            if expected.get(Path(m["source_file"]).stem) == (m["source_etag"], m.get("reader_version")):
                 done[m["source_file"]] = m
         print(f"  {len(done)}/{len(expected)} processed", flush=True)
         if len(done) == len(expected):

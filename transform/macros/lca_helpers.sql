@@ -17,14 +17,15 @@
 
 
 {#
-  Grouping key for employer names: upper-case, punctuation removed, common legal
-  suffixes dropped. "Amazon.com Services, LLC" and "AMAZON.COM SERVICES LLC" match;
-  separate legal entities (e.g. Amazon Web Services) stay separate.
+  Grouping key for employer names: upper-case, "&" spelled "AND" (USCIS writes
+  "JPMORGAN CHASE AND CO" where DOL has "JPMorgan Chase & Co."), punctuation removed,
+  common legal suffixes dropped. "Amazon.com Services, LLC" and "AMAZON.COM SERVICES LLC"
+  match; separate legal entities (e.g. Amazon Web Services) stay separate.
 #}
 {% macro normalize_employer(name) -%}
     nullif(trim(regexp_replace(
         regexp_replace(
-            regexp_replace(upper({{ name }}), '[^A-Z0-9&]+', ' ', 'g'),
-            '(\s+(L\s?L\s?C|L\s?L\s?P|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|LP|PC|PLLC|P\s?C))+\s*$', '', 'g'),
+            regexp_replace(replace(upper({{ name }}), '&', ' AND '), '[^A-Z0-9]+', ' ', 'g'),
+            '(\s+(L\s?L\s?C|L\s?L\s?P|L\s?P|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PC|PLLC|P\s?C))+\s*$', '', 'g'),
         '\s+', ' ', 'g')), '')
 {%- endmacro %}

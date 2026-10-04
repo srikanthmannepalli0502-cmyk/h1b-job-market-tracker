@@ -34,3 +34,6 @@ infra/*.tfstate*
 infra/tfplan
 infra/backend.hcl
 infra/*.tfvars
+
+# temporary CI simulation folder
+.ci_check/

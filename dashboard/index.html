@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>H-1B Tech Jobs Tracker</title>
   <meta name="description" content="Which US employers sponsor H-1B visas for data, AI, cybersecurity, cloud and DevOps roles, and what they pay. Built from U.S. Department of Labor LCA disclosure data.">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <header class="page-header">
@@ -61,6 +61,8 @@
               <th scope="col" class="num" title="Wage level I or entry-level title">Entry-level</th>
               <th scope="col" class="num" title="New employment (not extensions)">New hires</th>
               <th scope="col" class="num">Median salary</th>
+              <th scope="col" class="num" title="USCIS-approved H-1B petitions for new employment at this employer, all roles, same fiscal year">USCIS new-hire approvals</th>
+              <th scope="col" class="num" title="Share of this employer's new-employment H-1B petitions USCIS denied (shown with 10+ decisions)">New-hire denial rate</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -103,6 +105,11 @@
           A certified LCA shows intent to sponsor for that role and wage; it does not mean a visa was approved.</li>
         <li><strong>Salaries are offered wages</strong> (the lower end of the range on the application), converted to a yearly amount.
           Values outside $15K&ndash;$1M are treated as data-entry errors and excluded from salary figures.</li>
+        <li><strong>USCIS columns show whether petitions actually went through.</strong> They come from the
+          <a href="https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub">USCIS H-1B Employer Data Hub</a>:
+          USCIS&rsquo;s first decisions on <em>new employment</em> petitions (new H-1B hires, including change of status from
+          F-1/OPT) for the whole employer across all roles. Employers are matched on name plus the last four digits of
+          their tax ID (about 94% of approvals match). The denial rate is shown only with 10 or more decisions.</li>
         <li><strong>The same job goes by different titles.</strong> Amazon, for example, files its analyst roles as
           &ldquo;Business Intelligence Engineer&rdquo;, so it appears under BI Analyst / Engineer, not Data Analyst.
           Check neighboring roles when you search for sponsors.</li>
@@ -121,6 +128,6 @@
   </main>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

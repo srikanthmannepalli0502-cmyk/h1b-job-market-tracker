@@ -144,6 +144,16 @@ function trendPeriod(tr) {
 
 /* ---------- sponsors table ---------- */
 
+const MIN_DECISIONS_FOR_RATE = 10;
+
+/** New-employment denial rate, or "–" when there are too few decisions for a meaningful rate. */
+function denialRate(e) {
+  if (e.uscis_new_ok == null) return "–";
+  const decided = e.uscis_new_ok + e.uscis_new_denied;
+  if (decided < MIN_DECISIONS_FOR_RATE) return "–";
+  return `${((e.uscis_new_denied / decided) * 100).toFixed(1)}%`;
+}
+
 function sponsorRows() {
   const q = state.search.trim().toLowerCase();
   return DATA.employers
@@ -162,7 +172,7 @@ function renderSponsors() {
 
   const tbody = $("sponsors-table").querySelector("tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No employers match.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No employers match.</td></tr>`;
   } else {
     tbody.innerHTML = rows.slice(0, state.shown).map((e) => `
       <tr>
@@ -172,6 +182,8 @@ function renderSponsors() {
         <td class="num">${fmtInt(e.entry)}</td>
         <td class="num">${fmtInt(e.new_hires)}</td>
         <td class="num">${fmtMoneyFull(e.median_wage)}</td>
+        <td class="num">${e.uscis_new_ok == null ? "–" : fmtInt(e.uscis_new_ok)}</td>
+        <td class="num">${denialRate(e)}</td>
       </tr>`).join("");
   }
   $("sponsors-count").textContent = `Showing ${Math.min(state.shown, rows.length)} of ${fmtInt(rows.length)} employers`;

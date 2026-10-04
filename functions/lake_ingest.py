@@ -1,15 +1,16 @@
 """Raw -> bronze processing for the data lake.
 
-Finds DOL LCA workbooks in raw/lca/, converts each new or changed one to
-Parquet in bronze/lca/ with the same allow-list ingestion used locally
-(pipeline/ingest_lca.py), and records a manifest per source file:
+Finds raw files for each source (SOURCES: DOL LCA workbooks in raw/lca/, USCIS
+employer exports in raw/uscis/), converts each new or changed one to Parquet in
+bronze/ with the same ingestion code used locally (pipeline/ingest_*.py), and
+records a manifest per source file:
 
     bronze/_manifest/LCA_Disclosure_Data_FY2025_Q4.json
     {"source_file": ..., "source_etag": ..., "sha256": ..., "rows": ..., ...}
 
 A file is skipped when its manifest already records the raw blob's current ETag and
-the current READER_VERSION, so re-running is safe and cheap, and changing the
-ingestion logic (bumping READER_VERSION) reprocesses everything automatically.
+the source's current reader version, so re-running is safe and cheap, and changing
+the ingestion logic (bumping READER_VERSION) reprocesses that source automatically.
 
 Works with any object exposing the azure.storage.blob ContainerClient methods
 used below, which keeps it testable without Azure.
@@ -23,21 +24,68 @@ import time
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
-from pipeline.ingest_lca import READER_VERSION, ingest_file, parse_name
+from dataclasses import dataclass
+from typing import Callable
 
-RAW_PREFIX = "lca/"
-BRONZE_PREFIX = "lca/"
+import polars as pl
+
+from pipeline import ingest_lca, ingest_uscis
+
 MANIFEST_PREFIX = "_manifest/"
 
 log = logging.getLogger("lake_ingest")
 
 
+@dataclass(frozen=True)
+class Source:
+    """One kind of raw file: where it lands, how it's named, and how it becomes bronze."""
+
+    raw_prefix: str
+    name_hint: str
+    # file name -> period dict (e.g. {"fiscal_year": 2025, "quarter": 4}) or None if not this source
+    parse: Callable[[str], dict | None]
+    # (bytes, file name, period) -> bronze rows
+    convert: Callable[[bytes, str, dict], pl.DataFrame]
+    # period -> bronze blob name
+    bronze_blob: Callable[[dict], str]
+    reader_version: str
+
+
+def _lca_period(name: str) -> dict | None:
+    parsed = ingest_lca.parse_name(PurePosixPath(name))
+    return {"fiscal_year": parsed[0], "quarter": parsed[1]} if parsed else None
+
+
+def _uscis_period(name: str) -> dict | None:
+    fy = ingest_uscis.parse_name(PurePosixPath(name))
+    return {"fiscal_year": fy} if fy else None
+
+
+SOURCES = [
+    Source(
+        raw_prefix="lca/",
+        name_hint="LCA_Disclosure_Data_FY{yyyy}_Q{n}.xlsx",
+        parse=_lca_period,
+        convert=lambda data, name, p: ingest_lca.ingest_file(data, p["fiscal_year"], p["quarter"], file_name=name),
+        bronze_blob=lambda p: f"lca/lca_fy{p['fiscal_year']}_q{p['quarter']}.parquet",
+        reader_version=ingest_lca.READER_VERSION,
+    ),
+    Source(
+        raw_prefix="uscis/",
+        name_hint="uscis_h1b_employers_fy{yyyy}.csv",
+        parse=_uscis_period,
+        convert=lambda data, name, p: ingest_uscis.read_uscis_csv(data, name),
+        bronze_blob=lambda p: f"uscis/uscis_fy{p['fiscal_year']}.parquet",
+        reader_version=ingest_uscis.READER_VERSION,
+    ),
+]
+
+# Kept for callers that only deal with DOL files.
+READER_VERSION = ingest_lca.READER_VERSION
+
+
 def manifest_name(source_file: str) -> str:
     return f"{MANIFEST_PREFIX}{PurePosixPath(source_file).stem}.json"
-
-
-def bronze_name(fy: int, q: int) -> str:
-    return f"{BRONZE_PREFIX}lca_fy{fy}_q{q}.parquet"
 
 
 def read_manifest(bronze, source_file: str) -> dict | None:
@@ -47,35 +95,37 @@ def read_manifest(bronze, source_file: str) -> dict | None:
     return json.loads(blob.download_blob().readall())
 
 
-def process_new(raw, bronze, force: bool = False) -> list[dict]:
-    """Process raw workbooks that are new or changed. Returns one result per raw file."""
+def process_new(raw, bronze, force: bool = False, sources: list[Source] | None = None) -> list[dict]:
+    """Process raw files that are new or changed, for every source. Returns one result per raw file."""
     results = []
-    for item in raw.list_blobs(name_starts_with=RAW_PREFIX):
-        source_file = PurePosixPath(item.name).name
-        parsed = parse_name(PurePosixPath(source_file))
-        if parsed is None:
-            results.append({"source_file": source_file, "status": "ignored", "reason": "name does not match LCA_Disclosure_Data_FY{yyyy}_Q{n}.xlsx"})
-            continue
+    for source in sources or SOURCES:
+        for item in raw.list_blobs(name_starts_with=source.raw_prefix):
+            source_file = PurePosixPath(item.name).name
+            period = source.parse(source_file)
+            if period is None:
+                results.append({"source_file": source_file, "status": "ignored",
+                                "reason": f"name does not match {source.name_hint}"})
+                continue
 
-        etag = item.etag
-        manifest = None if force else read_manifest(bronze, source_file)
-        if manifest and manifest.get("source_etag") == etag and manifest.get("reader_version") == READER_VERSION:
-            results.append({"source_file": source_file, "status": "unchanged"})
-            continue
+            manifest = None if force else read_manifest(bronze, source_file)
+            if (manifest and manifest.get("source_etag") == item.etag
+                    and manifest.get("reader_version") == source.reader_version):
+                results.append({"source_file": source_file, "status": "unchanged"})
+                continue
 
-        results.append(process_one(raw, bronze, item.name, source_file, etag, *parsed))
+            results.append(process_one(raw, bronze, source, item.name, source_file, item.etag, period))
     return results
 
 
-def process_one(raw, bronze, blob_name: str, source_file: str, etag: str, fy: int, q: int) -> dict:
+def process_one(raw, bronze, source: Source, blob_name: str, source_file: str, etag: str, period: dict) -> dict:
     start = time.monotonic()
     data = raw.get_blob_client(blob_name).download_blob().readall()
     sha256 = hashlib.sha256(data).hexdigest()
 
-    df = ingest_file(data, fy, q, file_name=source_file)
+    df = source.convert(data, source_file, period)
     buf = io.BytesIO()
     df.write_parquet(buf, compression="zstd")
-    target = bronze_name(fy, q)
+    target = source.bronze_blob(period)
     bronze.get_blob_client(target).upload_blob(buf.getvalue(), overwrite=True)
 
     manifest = {
@@ -83,12 +133,11 @@ def process_one(raw, bronze, blob_name: str, source_file: str, etag: str, fy: in
         "source_etag": etag,
         "source_bytes": len(data),
         "sha256": sha256,
-        "fiscal_year": fy,
-        "quarter": q,
+        **period,
         "rows": df.height,
         "columns": df.width,
         "bronze_blob": target,
-        "reader_version": READER_VERSION,
+        "reader_version": source.reader_version,
         "bronze_bytes": buf.getbuffer().nbytes,
         "processed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.monotonic() - start, 1),

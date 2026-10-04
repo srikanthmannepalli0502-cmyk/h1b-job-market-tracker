@@ -54,13 +54,13 @@ jobs:
               f.write(f"changed={'true' if changed else 'false'}\n")
           EOF
 
-      - name: Download bronze Parquet
+      - name: Download bronze Parquet (DOL + USCIS)
         if: steps.check.outputs.changed == 'true' || inputs.force
         run: >
           mkdir -p data/bronze &&
           az storage blob download-batch --account-name "${{ vars.LAKE_ACCOUNT }}"
-          --source bronze --pattern 'lca/*.parquet' --destination data/bronze
-          --auth-mode login --only-show-errors && ls -la data/bronze/lca
+          --source bronze --pattern '*/*.parquet' --destination data/bronze
+          --auth-mode login --only-show-errors && ls -la data/bronze/lca data/bronze/uscis
 
       - uses: actions/setup-python@v5
         if: steps.check.outputs.changed == 'true' || inputs.force

@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: stg_uscis__decisions
+    columns:
+      - name: petition_type
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["new_employment", "change_of_employer", "continuation", "change_with_same_employer", "new_concurrent", "amended"]
+      - name: decision
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["approval", "denial"]
+      - name: fiscal_year
+        tests: [not_null]

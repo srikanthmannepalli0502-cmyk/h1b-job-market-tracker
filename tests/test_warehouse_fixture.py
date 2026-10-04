@@ -79,3 +79,23 @@ def test_role_classification(con, title, role):
 def test_seniority_from_title(con):
     (s,) = one(con, "select distinct seniority from fct_lca_applications where job_title = 'Senior Data Analyst'")
     assert s == "senior"
+
+
+def test_uscis_matching(con):
+    matches = dict(con.execute("""
+        select employer_key, match_type from int_uscis__employer_year
+    """).fetchall())
+    assert matches["AMAZON COM SERVICES"] == "name_and_tax_id"
+    assert matches["ERNST AND YOUNG U S"] == "name_and_tax_id"   # "&" vs "AND" normalized
+    assert matches["ACME ANALYTICS"] == "name_only"              # tax ID digits differ
+    assert matches["NOT IN DOL DATA"] == "unmatched"
+
+
+def test_uscis_counts_and_rate(con):
+    row = con.execute("""
+        select new_employment_approved, new_employment_denied, continuation_approved, round(new_employment_denial_rate, 5)
+        from agg_employer_uscis_year where employer_key = 'AMAZON COM SERVICES' and fiscal_year = 2025
+    """).fetchone()
+    assert row == (1204, 6, 800, round(6 / 1210, 5))
+    unmatched = one(con, "select count(*) from agg_employer_uscis_year where employer_key = 'NOT IN DOL DATA'")[0]
+    assert unmatched == 0

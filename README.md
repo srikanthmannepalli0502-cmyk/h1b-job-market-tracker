@@ -40,6 +40,9 @@ October–June months of FY2025.</sub>
 - **The pullback is recent.** In FY2025 data roles grew 13–15%; in FY2026 most tech sponsorship is
   shrinking (cloud −12%, DevOps −10%, BI −20%, software engineering −9%), with AI the clear exception.
 - **Cybersecurity is flat** both years, with one firm (Ernst & Young) filing about 1 in 10 of those applications.
+- **Big data-analyst sponsors rarely see new-hire petitions denied** (USCIS, FY2025): Walmart 0.8%,
+  JPMorgan Chase 0.4%, Capital One 0%. Consulting and staffing firms run higher (e.g. 3.6–4%), and the
+  overall denial rate rose from 2.1% in FY2025 to 3.0% in FY2026 to date.
 - **The same work hides under different titles.** Amazon, the largest sponsor for analyst-type work,
   files those roles as "Business Intelligence Engineer", never "Data Analyst".
 
@@ -48,6 +51,7 @@ October–June months of FY2025.</sub>
 ```mermaid
 flowchart LR
     DOL[DOL OFLC<br/>quarterly LCA .xlsx] -->|browser download<br/>4x a year| UP[scripts/upload_raw.py]
+    USCIS[USCIS Employer Data Hub<br/>approvals/denials .csv] -->|Tableau CSV export| UP
     subgraph Azure["Azure (rg-h1b-tracker, Terraform)"]
         RAW[(ADLS Gen2<br/>raw/lca)]
         FN[Azure Function<br/>Flex Consumption<br/>timer 6h + HTTP]
@@ -86,7 +90,13 @@ flowchart LR
 - **Employer names** are grouped by normalizing case, punctuation and legal suffixes
   ("Amazon.com Services, LLC" = "AMAZON.COM SERVICES LLC"). Distinct legal entities stay separate.
 - **Partial years are labeled**, and year-over-year changes always compare the same months.
-- **An LCA is not a visa.** It shows intent to sponsor a role at a wage, not an approved petition.
+- **An LCA is not a visa.** It shows intent to sponsor a role at a wage, not an approved petition. That's why
+  the USCIS data is joined in: it shows whether an employer's petitions were actually approved.
+- **Joining USCIS to DOL.** USCIS identifies employers by name and the last 4 digits of their tax ID; DOL
+  has the full FEIN. Employers match on normalized name **and** those 4 digits (`name_and_tax_id`), with a
+  weaker `name_only` fallback recorded separately. USCIS writes "&" as "AND" (`JPMORGAN CHASE AND CO`), so
+  the shared name rule spells out "&"; that raised the match rate from ~90% to ~94% of approvals, and a dbt
+  test fails if it drops below 85%. USCIS counts are for the whole employer (all roles), not per role.
 
 ## Run it
 
@@ -95,6 +105,10 @@ flowchart LR
 1. Download new `LCA_Disclosure_Data_FY*_Q*.xlsx` files from
    [DOL's performance data page](https://www.dol.gov/agencies/eta/foreign-labor/performance) into
    `data/raw/lca/` (DOL blocks automated downloads, so this step is manual, about 4 times a year).
+   For USCIS approvals, save the Employer Data Hub's crosstab export per fiscal year as
+   `data/raw/uscis/uscis_h1b_employers_fy{yyyy}.csv`:
+   `https://bigdataanalyticspub-sb.uscis.dhs.gov/views/H1BEmployerDataHub-Final/H1BPublic.csv?Fiscal%20Year%20%20%20={yyyy}`
+   (the field name really has three trailing spaces; without the filter you get only the latest year).
 2. Upload them to the lake and process right away (or let the 6-hour timer pick them up):
 
 ```bash
@@ -118,7 +132,8 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements-dev.txt
 
-python -m pipeline.ingest_lca                                    # data/raw -> Parquet
+python -m pipeline.ingest_lca                                    # DOL data/raw -> Parquet
+python -m pipeline.ingest_uscis                                  # USCIS data/raw -> Parquet
 dbt build --project-dir transform --profiles-dir transform       # models + tests
 python -m pipeline.export_dashboard                              # warehouse -> JSON
 python -m http.server 8765 --directory dashboard                 # open http://localhost:8765
@@ -134,7 +149,8 @@ infra/                   Terraform: lake, Function, monitoring, RBAC
 functions/               Azure Function (timer + HTTP) and lake_ingest.py
 scripts/                 upload_raw.py, deploy_dashboard.sh
 pipeline/
-  ingest_lca.py          bronze ingestion (allow-listed columns), shared by CLI and Function
+  ingest_lca.py          DOL bronze ingestion (allow-listed columns), shared by CLI and Function
+  ingest_uscis.py        USCIS bronze ingestion, shared by CLI and Function
   export_dashboard.py    warehouse -> compact JSON for the dashboard
 transform/               dbt project (DuckDB)
   models/staging/        typing, wage annualization, employer keys
@@ -155,7 +171,7 @@ tests/                   pytest + synthetic fixture generator
 - [ ] Event Grid trigger instead of the 6-hour timer (needs a two-stage deploy for the subscription)
 - [ ] Databricks notebook for loading multi-year history (FY2020+) into Delta tables
 - [ ] Power BI report on the marts (screenshots in this README)
-- [ ] USCIS H-1B Employer Data Hub join (petition approvals/denials per employer)
+- [x] USCIS H-1B Employer Data Hub join (approvals/denials per employer, matched on name + tax ID digits)
 - [ ] "Ask the data" assistant: natural language to SQL over the marts
 
 ## Disclaimer

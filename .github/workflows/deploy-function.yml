@@ -3,7 +3,7 @@ name: Deploy ingestion function
 on:
   push:
     branches: [main]
-    paths: ["functions/**", "pipeline/ingest_lca.py", ".github/workflows/deploy-function.yml"]
+    paths: ["functions/**", "pipeline/ingest_lca.py", "pipeline/ingest_uscis.py", ".github/workflows/deploy-function.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,7 @@ jobs:
         # The Function imports pipeline.ingest_lca, the same code used locally.
         run: |
           mkdir -p functions/pipeline
-          cp pipeline/__init__.py pipeline/ingest_lca.py functions/pipeline/
+          cp pipeline/__init__.py pipeline/ingest_lca.py pipeline/ingest_uscis.py functions/pipeline/
           ls -R functions
 
       - uses: azure/login@v2

@@ -67,3 +67,22 @@ models:
       - dbt_utils_unique_combination:
           arguments:
             columns: ["fiscal_year", "role_family", "wage_level", "worksite_state"]
+
+  - name: agg_employer_uscis_year
+    description: USCIS approvals and denials per DOL employer and fiscal year (matched employers only).
+    tests:
+      - dbt_utils_unique_combination:
+          arguments:
+            columns: ["employer_key", "fiscal_year"]
+    columns:
+      - name: employer_key
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_employers')
+                field: employer_key
+      - name: match_type
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["name_and_tax_id", "name_only"]

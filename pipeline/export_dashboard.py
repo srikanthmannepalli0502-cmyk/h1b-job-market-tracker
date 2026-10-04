@@ -149,9 +149,16 @@ def export(con) -> None:
         eligible as (
             select employer_key from by_role group by 1 having sum(apps) >= ?
         )
-        select b.* exclude (employer_key) from by_role b join eligible using (employer_key)
+        select
+            b.* exclude (employer_key),
+            -- USCIS decisions for the whole employer (all roles), same fiscal year
+            u.new_employment_approved as uscis_new_ok,
+            u.new_employment_denied   as uscis_new_denied
+        from by_role b
+        join eligible using (employer_key)
+        left join agg_employer_uscis_year u on u.employer_key = b.employer_key and u.fiscal_year = b.fy
         -- full tie-break so rebuilds produce byte-identical files (clean git diffs)
-        order by apps desc, employer_key, fy, role
+        order by apps desc, b.employer_key, fy, role
     """, [*roles, MIN_EMPLOYER_APPS])))
 
     write("states", columnar(rows(con, f"""
