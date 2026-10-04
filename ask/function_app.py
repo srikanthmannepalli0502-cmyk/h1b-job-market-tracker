@@ -58,9 +58,10 @@ def _json(body: dict, status: int = 200) -> func.HttpResponse:
 @app.route(route="ask", methods=["POST"])
 def ask(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        question = (req.get_json() or {}).get("question", "")
-    except ValueError:
-        return _json({"error": "Send JSON like {\"question\": \"...\"}."}, 400)
+        question = engine.validate_question((req.get_json() or {}).get("question", ""))
+    except ValueError as e:  # bad JSON or BadQuestion: rejected before counting or loading anything
+        message = str(e) if isinstance(e, engine.BadQuestion) else "Send JSON like {\"question\": \"...\"}."
+        return _json({"error": message}, 400)
 
     try:
         usage.take_one(_blob_service().get_container_client(os.environ.get("USAGE_CONTAINER", "usage")),

@@ -84,12 +84,18 @@ def _jsonable(value):
     return value
 
 
-def ask(question: str, con: duckdb.DuckDBPyConnection, llm: ChatClient) -> Answer:
+def validate_question(question: str) -> str:
+    """Cheap checks done before anything costs money or loads data."""
     question = (question or "").strip()
     if not question:
         raise BadQuestion("Please type a question.")
     if len(question) > MAX_QUESTION_CHARS:
         raise BadQuestion(f"Please keep questions under {MAX_QUESTION_CHARS} characters.")
+    return question
+
+
+def ask(question: str, con: duckdb.DuckDBPyConnection, llm: ChatClient) -> Answer:
+    question = validate_question(question)
 
     raw = llm.complete(prompts.SQL_SYSTEM, question, json_schema=prompts.SQL_RESPONSE_FORMAT,
                        effort="low", max_tokens=4000)
