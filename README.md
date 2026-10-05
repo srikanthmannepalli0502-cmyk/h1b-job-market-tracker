@@ -152,6 +152,8 @@ python tableau/build_workbook.py         # -> tableau/H1B_Tech_Jobs_Tracker.twbx
 1. Download new `LCA_Disclosure_Data_FY*_Q*.xlsx` files from
    [DOL's performance data page](https://www.dol.gov/agencies/eta/foreign-labor/performance) into
    `data/raw/lca/` (DOL blocks automated downloads, so this step is manual, about 4 times a year).
+   The daily **Check for new DOL data** workflow watches the page and opens an issue (which
+   emails me) when a new file appears.
    For USCIS approvals, save the Employer Data Hub's crosstab export per fiscal year as
    `data/raw/uscis/uscis_h1b_employers_fy{yyyy}.csv`:
    `https://bigdataanalyticspub-sb.uscis.dhs.gov/views/H1BEmployerDataHub-Final/H1BPublic.csv?Fiscal%20Year%20%20%20={yyyy}`
@@ -195,7 +197,7 @@ synthetic dataset, and the same commands work on it (that's what CI does).
 infra/                   Terraform: lake, Function, monitoring, RBAC
 functions/               Ingestion Azure Function (timer + HTTP) and lake_ingest.py
 ask/                     "Ask the data" Function: engine, SQL guard, prompts, daily cap
-scripts/                 upload_raw.py, deploy_dashboard.sh
+scripts/                 upload_raw.py, deploy_dashboard.sh, check_dol_releases.py
 pipeline/
   ingest_lca.py          DOL bronze ingestion (allow-listed columns), shared by CLI and Function
   ingest_uscis.py        USCIS bronze ingestion, shared by CLI and Function
@@ -222,6 +224,7 @@ tests/                   pytest + synthetic fixture generator
 - [ ] Event Grid trigger instead of the 6-hour timer (needs a two-stage deploy for the subscription)
 - [x] ~~Databricks history load (FY2020+)~~ Decided against: pre-2024 data describes a different, pre-AI market. Completed FY2024 instead, giving two full years for comparisons.
 - [x] ~~Power BI report~~ Tableau workbook generated from code (three dashboards, Hyper extracts)
+- [x] New-release reminder: daily check of DOL's page, opens an issue per new file
 - [x] USCIS H-1B Employer Data Hub join (approvals/denials per employer, matched on name + tax ID digits)
 - [x] "Ask the data" assistant: natural language to SQL over gold tables (Azure OpenAI, guarded)
 

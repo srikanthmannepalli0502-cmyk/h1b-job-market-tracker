@@ -1,0 +1,81 @@
+name: Check for new DOL data
+
+# Daily: look for new LCA disclosure files on DOL's performance data page. For each new
+# file, open an issue assigned to the repo owner (GitHub emails the assignee) with the
+# steps to load it, then record the file in scripts/dol_releases_seen.txt.
+on:
+  schedule:
+    - cron: "41 14 * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Open a test issue for the latest file on the page (does not change the seen list)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # commit the seen list
+  issues: write
+
+concurrency:
+  group: check-dol-releases
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Look for new files
+        run: |
+          if [ "${{ inputs.test }}" = "true" ]; then
+            # Pretend the newest seen file is new, without touching the real list.
+            tail -n 1 scripts/dol_releases_seen.txt > /tmp/latest
+            grep -vxFf /tmp/latest scripts/dol_releases_seen.txt > /tmp/seen && cp /tmp/seen scripts/dol_releases_seen.txt
+            python3 scripts/check_dol_releases.py > new.jsonl
+            git checkout scripts/dol_releases_seen.txt
+          else
+            python3 scripts/check_dol_releases.py --update > new.jsonl
+          fi
+          cat new.jsonl
+
+      - name: Open an issue per new file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          TEST: ${{ inputs.test && '[test] ' || '' }}
+        run: |
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            file=$(jq -r .file <<<"$line"); url=$(jq -r .url <<<"$line")
+            cat > body.md <<EOF
+          @$OWNER DOL published a new LCA disclosure file: **$file**
+
+          Download: $url
+          (DOL blocks automated downloads, so download it in your browser.)
+
+          To load it:
+          1. Save it to \`data/raw/lca/$file\`.
+          2. Upload and process:
+             \`\`\`
+             az login
+             python scripts/upload_raw.py --account <lake_account> --process --function-app <function_app_name>
+             \`\`\`
+          3. The daily **Refresh data from lake** workflow rebuilds the web dashboard (or run it from the Actions tab).
+          4. Refresh the Tableau workbook: \`python -m pipeline.export_tableau\`, \`python tableau/build_workbook.py\`,
+             then open the .twbx and use File > Save to Tableau Public.
+
+          Close this issue when the data is loaded.
+          EOF
+            gh issue create --title "${TEST}New DOL release: $file" --body-file body.md --assignee "$OWNER"
+          done < new.jsonl
+
+      - name: Record the files as seen
+        if: ${{ !inputs.test }}
+        run: |
+          git diff --quiet scripts/dol_releases_seen.txt && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Record new DOL release(s) as seen [skip ci]"
+          git push
