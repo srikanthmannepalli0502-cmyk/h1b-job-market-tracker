@@ -101,6 +101,27 @@ It is a public, anonymous endpoint, so it is built defensively:
 Tests (`tests/test_ask.py`) cover the guard against 11 attack patterns, file access being impossible,
 the retry path, the row cap, and the daily cap under a concurrent update, all without calling Azure.
 
+## Tableau workbook
+
+[`tableau/H1B_Tech_Jobs_Tracker.twbx`](tableau/H1B_Tech_Jobs_Tracker.twbx) is a packaged workbook
+(opens in the free Tableau Public) with three dashboards driven by **Role** and **Fiscal Year** parameters:
+
+1. **Sponsors**: top 15 sponsors for the role, plus the USCIS new-hire denial rate for the top 25
+   (only employers with 20+ decisions, so small samples don't dominate).
+2. **Salaries & Locations**: median wage by DOL wage level, and top worksite states.
+3. **Growth**: change in certified applications for every role compared with the prior year
+   (same months compared, so partial years are fair).
+
+The workbook is generated from code, not drawn by hand: `export_tableau.py` writes tidy CSVs
+from the warehouse, and `build_workbook.py` writes the workbook XML and builds Hyper extracts
+(Tableau Public requires extracts).
+
+```bash
+pip install -r requirements-tableau.txt
+python -m pipeline.export_tableau        # warehouse -> tableau/data/*.csv
+python tableau/build_workbook.py         # -> tableau/H1B_Tech_Jobs_Tracker.twbx
+```
+
 ## Data decisions
 
 - **Personal data is never stored.** DOL's files include names, emails and phone numbers of employer
@@ -179,6 +200,7 @@ pipeline/
   ingest_uscis.py        USCIS bronze ingestion, shared by CLI and Function
   export_dashboard.py    warehouse -> compact JSON for the dashboard
   export_gold.py         warehouse -> gold tables for the assistant
+  export_tableau.py      warehouse -> CSVs for the Tableau workbook
 transform/               dbt project (DuckDB)
   models/staging/        typing, wage annualization, employer keys
   models/intermediate/   latest release per case, role + seniority classification
@@ -186,6 +208,7 @@ transform/               dbt project (DuckDB)
   seeds/                 role_family_rules.csv
   tests/                 singular data tests
 dashboard/               static site + exported JSON
+tableau/                 build_workbook.py and the packaged .twbx
 tests/                   pytest + synthetic fixture generator
 ```
 
@@ -197,7 +220,7 @@ tests/                   pytest + synthetic fixture generator
 - [x] Daily refresh workflow: rebuild only when the lake changes
 - [ ] Event Grid trigger instead of the 6-hour timer (needs a two-stage deploy for the subscription)
 - [x] ~~Databricks history load (FY2020+)~~ Decided against: pre-2024 data describes a different, pre-AI market. Completed FY2024 instead, giving two full years for comparisons.
-- [ ] Power BI report on the marts (screenshots in this README)
+- [x] ~~Power BI report~~ Tableau workbook generated from code (three dashboards, Hyper extracts)
 - [x] USCIS H-1B Employer Data Hub join (approvals/denials per employer, matched on name + tax ID digits)
 - [x] "Ask the data" assistant: natural language to SQL over gold tables (Azure OpenAI, guarded)
 

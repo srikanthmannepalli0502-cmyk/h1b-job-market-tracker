@@ -38,3 +38,9 @@ infra/*.tfvars
 # temporary CI simulation folder
 .ci_check/
 data/gold/
+
+# Tableau build outputs (the packaged .twbx is committed)
+tableau/data/
+tableau/extracts/
+tableau/*.twb
+hyperd*.log
