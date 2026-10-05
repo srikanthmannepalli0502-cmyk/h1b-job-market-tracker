@@ -3,7 +3,8 @@
 ![CI](../../actions/workflows/ci.yml/badge.svg)
 ![Deploy](../../actions/workflows/deploy-dashboard.yml/badge.svg)
 
-**Live dashboard:** https://stcloudresumeweby4ajk1.z13.web.core.windows.net/h1b/
+**Live dashboard:** https://stcloudresumeweby4ajk1.z13.web.core.windows.net/h1b/  
+**Tableau Public:** https://public.tableau.com/app/profile/srikanth.mannepalli/viz/H1B_Tech_Jobs_Tracker/1_Sponsors
 
 Which US employers sponsor H-1B visas for **data, AI, cybersecurity, cloud and DevOps roles**,
 how many, and what they pay. Built from the U.S. Department of Labor's public Labor Condition
@@ -104,7 +105,7 @@ the retry path, the row cap, and the daily cap under a concurrent update, all wi
 ## Tableau workbook
 
 [`tableau/H1B_Tech_Jobs_Tracker.twbx`](tableau/H1B_Tech_Jobs_Tracker.twbx) is a packaged workbook
-(opens in the free Tableau Public) with three dashboards driven by **Role** and **Fiscal Year** parameters:
+([published on Tableau Public](https://public.tableau.com/app/profile/srikanth.mannepalli/viz/H1B_Tech_Jobs_Tracker/1_Sponsors)) with three dashboards driven by **Role** and **Fiscal Year** parameters:
 
 1. **Sponsors**: top 15 sponsors for the role, plus the USCIS new-hire denial rate for the top 25
    (only employers with 20+ decisions, so small samples don't dominate).
