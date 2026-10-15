@@ -204,6 +204,7 @@ pipeline/
   export_dashboard.py    warehouse -> compact JSON for the dashboard
   export_gold.py         warehouse -> gold tables for the assistant
   export_tableau.py      warehouse -> CSVs for the Tableau workbook
+  export_sponsors.py     warehouse -> one row per sponsor, for job-hunter-auto
 transform/               dbt project (DuckDB)
   models/staging/        typing, wage annualization, employer keys
   models/intermediate/   latest release per case, role + seniority classification

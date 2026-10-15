@@ -44,3 +44,6 @@ tableau/data/
 tableau/extracts/
 tableau/*.twb
 hyperd*.log
+
+# Exports for other projects (e.g. the job hunter sponsor table)
+exports/
