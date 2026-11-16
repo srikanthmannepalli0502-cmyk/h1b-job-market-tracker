@@ -22,4 +22,7 @@ LCA_Disclosure_Data_FY2025_Q1.xlsx
 LCA_Disclosure_Data_FY2025_Q2.xlsx
 LCA_Disclosure_Data_FY2025_Q3.xlsx
 LCA_Disclosure_Data_FY2025_Q4.xlsx
+LCA_Disclosure_Data_FY2026_Q1.xlsx
+LCA_Disclosure_Data_FY2026_Q2.xlsx
 LCA_Disclosure_Data_FY2026_Q3.xlsx
+LCA_Disclosure_Data_FY2026_Q4.xlsx
