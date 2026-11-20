@@ -1,7 +1,7 @@
 azure-functions
 azure-identity
 azure-storage-blob>=12.19
-duckdb>=1.2
+duckdb>=1.2,<2
 fsspec>=2024.2
-polars>=1.0
+polars>=1.0,<2
 pyarrow>=15
